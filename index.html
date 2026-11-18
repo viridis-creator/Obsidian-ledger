@@ -1,19 +1,31 @@
 <!DOCTYPE html>
-<html lang="en" class="dark overflow-x-hidden max-w-full">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Obsidian Ledger — Cloud-Synced Expense & Income Tracker</title>
+
+  <!-- iOS PWA / Home Screen App Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Obsidian Ledger" />
+  <meta name="theme-color" content="#09090b" />
+
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Inter & JetBrains Mono -->
+
+  <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Firebase Compat SDKs (Standard global scripts — immune to ES module CORS/Safari hangs) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
 
   <script>
     tailwind.config = {
@@ -21,7 +33,7 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'sans-serif'],
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
             mono: ['JetBrains Mono', 'monospace'],
           },
           colors: {
@@ -31,89 +43,135 @@
               850: '#16161a',
               800: '#1c1c21',
               700: '#27272e',
-              600: '#383842',
-            },
-            emeraldGlow: {
-              400: '#34d399',
-              500: '#10b981',
-              600: '#059669',
             }
           }
         }
       }
     };
   </script>
+
   <style>
     *, *::before, *::after {
       box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
     html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #09090b;
+      color: #f8fafc;
       overflow-x: hidden;
-      max-width: 100vw;
       width: 100%;
+      max-width: 100vw;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    button, a, select, input {
+      touch-action: manipulation;
+    }
+    button {
+      cursor: pointer;
+    }
+    /* Custom scrollbar for dark mode */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #09090b;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #27272e;
+      border-radius: 9999px;
     }
   </style>
 </head>
-<body class="bg-obsidian-950 text-slate-100 font-sans antialiased selection:bg-emerald-500/30 selection:text-emerald-200 min-h-screen flex flex-col overflow-x-hidden">
+<body class="bg-obsidian-950 text-slate-100 antialiased min-h-screen flex flex-col selection:bg-emerald-500/30 selection:text-emerald-200">
 
-  <!-- Authentication Gate / Login & Register Screen -->
-  <div id="authGateOverlay" class="fixed inset-0 z-50 bg-obsidian-950/95 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto">
-    <div class="w-full max-w-md bg-obsidian-900 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 my-auto">
-      <!-- Brand Header -->
+  <!-- ===================================================================== -->
+  <!-- AUTHENTICATION GATE (Sign In / Create Account / Google / Offline)     -->
+  <!-- ===================================================================== -->
+  <div id="authGateOverlay" class="fixed inset-0 z-50 bg-obsidian-950 flex items-center justify-center p-4 overflow-y-auto">
+    <div class="w-full max-w-md bg-obsidian-900 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 my-auto">
+
+      <!-- Brand Header with Inline SVG Emblem -->
       <div class="text-center space-y-2">
-        <div class="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-          <i data-lucide="layers" class="w-6 h-6 text-obsidian-950 stroke-[2.2]"></i>
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+          <svg class="w-7 h-7 text-obsidian-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
+          </svg>
         </div>
         <h1 class="text-xl font-bold tracking-tight text-white">
-          OBSIDIAN <span class="text-emerald-400 font-medium">LEDGER</span>
+          OBSIDIAN <span class="text-emerald-400 font-semibold">LEDGER</span>
         </h1>
-        <p class="text-xs text-slate-400">Real-Time Cloud Synced Expense & Monthly Income Tracker</p>
+        <p class="text-xs text-slate-400">Real-Time Cloud Synced Expense &amp; Monthly Income Tracker</p>
       </div>
 
-      <!-- Auth Mode Tabs -->
-      <div class="grid grid-cols-2 bg-obsidian-950 p-1 rounded-xl border border-white/[0.08]">
-        <button type="button" id="tabSignInBtn" class="py-2 rounded-lg text-xs font-semibold bg-emerald-500 text-obsidian-950 transition">
+      <!-- Auth Mode Toggle Tabs -->
+      <div class="grid grid-cols-2 bg-obsidian-950 p-1 rounded-xl border border-white/10">
+        <button type="button" id="tabSignInBtn" onclick="window.switchAuthMode('signin')"
+          class="py-2.5 rounded-lg text-xs font-semibold bg-emerald-500 text-obsidian-950 transition">
           Sign In
         </button>
-        <button type="button" id="tabSignUpBtn" class="py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
+        <button type="button" id="tabSignUpBtn" onclick="window.switchAuthMode('signup')"
+          class="py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
           Create Account
         </button>
       </div>
 
-      <!-- Auth Error Alert -->
-      <div id="authErrorBox" class="hidden rounded-xl bg-rose-500/15 border border-rose-500/30 p-3 text-xs text-rose-300 flex items-start gap-2">
-        <i data-lucide="alert-circle" class="w-4 h-4 text-rose-400 shrink-0 mt-0.5"></i>
-        <span id="authErrorText">Authentication error</span>
+      <!-- Visible Auth Status / Error Alert Box -->
+      <div id="authErrorBox" class="hidden rounded-xl bg-rose-500/15 border border-rose-500/40 p-3.5 text-xs text-rose-200 flex items-start gap-2.5">
+        <svg class="w-4 h-4 text-rose-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span id="authErrorText" class="leading-relaxed">Authentication error</span>
       </div>
 
       <!-- Email & Password Form -->
-      <form id="authForm" class="space-y-4">
+      <form id="authForm" onsubmit="window.handleEmailAuth(event)" class="space-y-4">
+        <div id="displayNameGroup" class="hidden">
+          <label for="authDisplayName" class="block text-xs font-medium text-slate-300 mb-1.5">Your Name (Optional)</label>
+          <input type="text" id="authDisplayName" autocomplete="name" placeholder="e.g., Alex"
+            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none transition" />
+        </div>
+
         <div>
           <label for="authEmail" class="block text-xs font-medium text-slate-300 mb-1.5">Email Address</label>
           <input type="email" id="authEmail" required autocomplete="email" placeholder="you@example.com"
             class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none transition" />
         </div>
+
         <div>
-          <label for="authPassword" class="block text-xs font-medium text-slate-300 mb-1.5">Password</label>
+          <label for="authPassword" class="block text-xs font-medium text-slate-300 mb-1.5">Password (min 6 characters)</label>
           <input type="password" id="authPassword" required minlength="6" autocomplete="current-password" placeholder="••••••••"
             class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none transition" />
         </div>
-        <button type="submit" id="authSubmitBtn" class="w-full bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-sm py-2.5 px-4 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-[0.99]">
-          <i data-lucide="log-in" class="w-4 h-4"></i>
+
+        <button type="submit" id="authSubmitBtn"
+          class="w-full bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-obsidian-950 font-semibold text-sm py-3 px-4 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+            <polyline points="10 17 15 12 10 7"></polyline>
+            <line x1="15" y1="12" x2="3" y2="12"></line>
+          </svg>
           <span id="authSubmitText">Sign In to Cloud</span>
         </button>
       </form>
 
       <!-- Divider -->
       <div class="relative flex items-center justify-center">
-        <div class="border-t border-white/[0.08] w-full"></div>
+        <div class="border-t border-white/10 w-full"></div>
         <span class="bg-obsidian-900 px-3 text-[11px] uppercase tracking-wider text-slate-500">or</span>
-        <div class="border-t border-white/[0.08] w-full"></div>
+        <div class="border-t border-white/10 w-full"></div>
       </div>
 
-      <!-- Google & Offline Mode Options -->
+      <!-- Google & Local Offline Mode Buttons -->
       <div class="space-y-2.5">
-        <button type="button" id="googleSignInBtn" class="w-full bg-obsidian-800 hover:bg-obsidian-700 text-white font-medium text-xs sm:text-sm py-2.5 px-4 rounded-xl border border-white/10 flex items-center justify-center gap-2.5 transition">
+        <button type="button" id="googleSignInBtn" onclick="window.handleGoogleSignIn()"
+          class="w-full bg-obsidian-800 hover:bg-obsidian-700 active:bg-obsidian-850 text-white font-medium text-xs sm:text-sm py-3 px-4 rounded-xl border border-white/10 flex items-center justify-center gap-2.5 transition">
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"/>
             <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"/>
@@ -123,810 +181,1085 @@
           <span>Continue with Google</span>
         </button>
 
-        <button type="button" id="continueOfflineBtn" class="w-full bg-transparent hover:bg-white/[0.04] text-slate-400 hover:text-slate-200 font-medium text-xs py-2.5 px-4 rounded-xl border border-white/[0.06] flex items-center justify-center gap-2 transition">
-          <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-slate-400"></i>
+        <button type="button" id="continueOfflineBtn" onclick="window.enterOfflineMode()"
+          class="w-full bg-transparent hover:bg-white/[0.05] active:bg-white/[0.08] text-slate-300 hover:text-white font-medium text-xs py-3 px-4 rounded-xl border border-white/10 flex items-center justify-center gap-2 transition">
+          <svg class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+          </svg>
           <span>Continue in Local Offline Mode</span>
         </button>
       </div>
 
-      <!-- Self-Hosting Setup Info Trigger -->
+      <!-- Setup Info Toggle -->
       <div class="pt-1 text-center">
-        <button type="button" id="openSetupGuideFromAuthBtn" class="text-[11px] text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 transition">
-          <i data-lucide="info" class="w-3.5 h-3.5"></i>
+        <button type="button" onclick="window.toggleSetupModal(true)"
+          class="text-xs text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1.5 py-1 px-2 transition">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
           <span>Self-Hosting Cloud Setup Info</span>
         </button>
       </div>
     </div>
   </div>
 
-  <!-- Top Navigation Header -->
-  <header class="sticky top-0 z-30 w-full bg-obsidian-950/90 backdrop-blur-xl border-b border-white/[0.08]">
-    <div class="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
-      <!-- Brand Identity -->
-      <div class="flex items-center gap-2.5 min-w-0">
-        <div class="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-          <i data-lucide="layers" class="w-5 h-5 text-obsidian-950 stroke-[2.2]"></i>
-        </div>
-        <div class="min-w-0">
-          <h1 class="text-sm sm:text-lg font-bold tracking-tight text-white flex items-center gap-1.5 truncate">
-            OBSIDIAN <span class="text-emerald-400 font-medium">LEDGER</span>
-          </h1>
-          <div class="flex items-center gap-2">
-            <!-- Live Cloud Sync Status Indicator -->
-            <span id="syncStatusBadge" class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-mono text-slate-400">
-              <span id="syncStatusDot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
-              <span id="syncStatusText">Offline Mode</span>
-            </span>
+  <!-- ===================================================================== -->
+  <!-- MAIN APPLICATION DASHBOARD                                            -->
+  <!-- ===================================================================== -->
+  <div id="appShell" class="hidden flex-1 flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="sticky top-0 z-30 bg-obsidian-950/90 backdrop-blur-xl border-b border-white/10">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+        <!-- Brand & Live Sync Pill -->
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shrink-0 shadow-md shadow-emerald-500/20">
+            <svg class="w-5 h-5 text-obsidian-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+              <polyline points="2 17 12 22 22 17"></polyline>
+              <polyline points="2 12 12 17 22 12"></polyline>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-sm sm:text-base tracking-tight text-white truncate">OBSIDIAN <span class="text-emerald-400">LEDGER</span></span>
+            </div>
+            <div class="flex items-center gap-1.5 mt-0.5">
+              <span id="syncDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+              <span id="syncLabel" class="text-[11px] text-slate-400 truncate">Local Offline Mode</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Global Controls -->
-      <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-        <!-- User Account Pill -->
-        <div id="userAccountBadge" class="hidden sm:flex items-center gap-2 bg-obsidian-900 border border-white/10 rounded-xl px-2.5 py-1.5 max-w-[190px]">
-          <div id="userAvatarInitial" class="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-bold flex items-center justify-center shrink-0">
-            U
-          </div>
-          <span id="userEmailLabel" class="text-xs text-slate-300 truncate">Offline</span>
-        </div>
-
-        <!-- Currency Switcher -->
-        <div class="relative">
-          <select id="currencySelector" aria-label="Select Currency" class="appearance-none bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 text-xs sm:text-sm font-mono font-medium pl-2.5 pr-6 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-emerald-500 transition cursor-pointer">
+        <!-- Right Controls: Currency, Export, Sign Out -->
+        <div class="flex items-center gap-2 shrink-0">
+          <select id="currencySelect" onchange="window.handleCurrencyChange(this.value)" aria-label="Currency"
+            class="bg-obsidian-900 border border-white/10 rounded-xl px-2.5 py-2 text-xs font-mono font-semibold text-slate-200 focus:outline-none focus:border-emerald-500">
             <option value="GMD">GMD (D)</option>
             <option value="USD">USD ($)</option>
             <option value="EUR">EUR (€)</option>
             <option value="GBP">GBP (£)</option>
           </select>
-          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-        </div>
 
-        <!-- Data & Account Actions Dropdown Trigger -->
-        <div class="relative" id="dataMenuWrapper">
-          <button id="dataMenuBtn" type="button" aria-label="Data and Account Menu" class="flex items-center gap-1.5 bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 text-xs sm:text-sm font-medium px-2.5 sm:px-3 py-2 rounded-xl border border-white/10 transition">
-            <i data-lucide="database" class="w-4 h-4 text-emerald-400 shrink-0"></i>
-            <span class="hidden md:inline">Menu</span>
-            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+          <button type="button" onclick="window.exportCSV()" title="Export CSV"
+            class="bg-obsidian-900 hover:bg-obsidian-800 text-slate-300 border border-white/10 rounded-xl p-2 sm:px-3 sm:py-2 text-xs font-medium flex items-center gap-1.5 transition">
+            <svg class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span class="hidden sm:inline">CSV</span>
           </button>
 
-          <!-- Dropdown Menu -->
-          <div id="dataDropdown" class="hidden absolute right-0 mt-2 w-60 rounded-2xl bg-obsidian-850 border border-white/10 shadow-2xl shadow-black/80 py-1.5 z-50">
-            <!-- Mobile Account Info Header -->
-            <div class="px-4 py-2 border-b border-white/[0.08] sm:hidden">
-              <p class="text-[10px] uppercase tracking-wider text-slate-500">Account</p>
-              <p id="mobileUserEmailLabel" class="text-xs text-slate-200 font-medium truncate">Local Offline Mode</p>
-            </div>
-
-            <button id="exportCsvBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-200 hover:bg-white/[0.06] flex items-center gap-2.5 transition">
-              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400 shrink-0"></i>
-              Export Ledger (CSV)
-            </button>
-            <button id="exportJsonBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-200 hover:bg-white/[0.06] flex items-center gap-2.5 transition">
-              <i data-lucide="download" class="w-4 h-4 text-sky-400 shrink-0"></i>
-              Download JSON Backup
-            </button>
-            <label for="importJsonInput" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-200 hover:bg-white/[0.06] flex items-center gap-2.5 transition cursor-pointer">
-              <i data-lucide="upload" class="w-4 h-4 text-indigo-400 shrink-0"></i>
-              Import JSON Backup
-            </label>
-            <input type="file" id="importJsonInput" accept=".json" class="hidden" />
-
-            <button id="openSetupGuideMenuBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-200 hover:bg-white/[0.06] flex items-center gap-2.5 transition">
-              <i data-lucide="cloud-cog" class="w-4 h-4 text-amber-400 shrink-0"></i>
-              Cloud Setup Info
-            </button>
-
-            <div class="my-1 border-t border-white/[0.08]"></div>
-            <button id="clearAllBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-rose-400 hover:bg-rose-500/10 flex items-center gap-2.5 transition">
-              <i data-lucide="trash-2" class="w-4 h-4 text-rose-400 shrink-0"></i>
-              Clear All Data
-            </button>
-            <button id="authActionBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-300 hover:bg-white/[0.06] flex items-center gap-2.5 transition">
-              <i id="authActionIcon" data-lucide="log-out" class="w-4 h-4 text-slate-400 shrink-0"></i>
-              <span id="authActionText">Sign Out</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Primary Quick Add Button -->
-        <button id="scrollAddBtn" type="button" class="bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-xs sm:text-sm px-3 sm:px-3.5 py-2 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 transition active:scale-[0.98]">
-          <i data-lucide="plus" class="w-4 h-4 stroke-[2.5] shrink-0"></i>
-          <span class="hidden sm:inline">Log Expense</span>
-          <span class="sm:hidden">Add</span>
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Workspace -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8 overflow-x-hidden">
-
-    <!-- Local-to-Cloud Data Migration Banner (Shown when signed into Cloud & local offline entries exist) -->
-    <div id="migrationBanner" class="hidden rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 sm:p-5 shadow-lg">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div class="flex items-start gap-3">
-          <div class="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-500/30 text-sky-400 flex items-center justify-center shrink-0 mt-0.5">
-            <i data-lucide="cloud-upload" class="w-5 h-5"></i>
-          </div>
-          <div class="min-w-0">
-            <h3 class="text-sm sm:text-base font-bold text-white">Local Offline Data Detected</h3>
-            <p id="migrationBannerText" class="text-xs sm:text-sm text-sky-200/80 mt-0.5 leading-relaxed">
-              You have local records saved on this device. Migrate them to your cloud account so they sync across all your devices.
-            </p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
-          <button id="dismissMigrationBtn" type="button" class="text-xs font-medium text-slate-300 hover:text-white bg-obsidian-800 hover:bg-obsidian-700 px-3 py-2 rounded-xl border border-white/10 transition">
-            Dismiss
-          </button>
-          <button id="migrateLocalDataBtn" type="button" class="text-xs font-semibold text-obsidian-950 bg-sky-400 hover:bg-sky-300 px-3.5 py-2 rounded-xl shadow-lg shadow-sky-500/20 flex items-center gap-1.5 transition">
-            <i data-lucide="upload-cloud" class="w-4 h-4"></i>
-            <span>Migrate Local Data to Cloud</span>
+          <button type="button" id="signOutBtn" onclick="window.handleSignOut()"
+            class="bg-obsidian-900 hover:bg-rose-500/15 hover:text-rose-300 hover:border-rose-500/30 text-slate-300 border border-white/10 rounded-xl px-3 py-2 text-xs font-medium flex items-center gap-1.5 transition">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span id="signOutBtnText">Sign Out</span>
           </button>
         </div>
       </div>
-    </div>
+    </header>
 
-    <!-- Smart Reminder / Low-Balance Warning Banner (Auto-triggered when monthly expenses >= 85% or >= 100% of monthly income) -->
-    <div id="incomeWarningBanner" class="hidden rounded-2xl border p-4 sm:p-5 transition-all duration-300 shadow-lg" role="alert">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div class="flex items-start gap-3">
-          <div id="incomeWarningIconWrap" class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
-            <i id="incomeWarningIcon" data-lucide="alert-triangle" class="w-5 h-5"></i>
-          </div>
-          <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2">
-              <h3 id="incomeWarningTitle" class="text-sm sm:text-base font-bold tracking-tight">Monthly Income Alert</h3>
-              <span id="incomeWarningBadge" class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full">0% Used</span>
-            </div>
-            <p id="incomeWarningText" class="text-xs sm:text-sm mt-1 leading-relaxed">
-              Your monthly expenses are nearly equal to your monthly income earned.
-            </p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
-          <button id="bannerAdjustIncomeBtn" type="button" class="text-xs font-semibold px-3.5 py-2 rounded-xl border transition">
-            Update Monthly Income
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
 
-    <!-- Section 1: Automated Financial Overview -->
-    <section aria-label="Automated Financial Overview" class="space-y-4">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <!-- Month Filter & Account Greeting Bar -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-obsidian-900/70 border border-white/[0.08] rounded-2xl p-4">
         <div>
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Monthly Income, Balance & Expense Overview</h2>
+          <p class="text-xs text-slate-400">Active Ledger Account</p>
+          <p id="activeUserDisplay" class="text-sm font-semibold text-white truncate">Local Offline Session</p>
         </div>
-        <div class="flex items-center gap-2 text-xs text-slate-400 font-mono">
-          <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span id="referenceDateBadge">Today: Nov 18, 2026</span>
+        <div class="flex items-center gap-2">
+          <label for="monthFilterInput" class="text-xs text-slate-400">Month:</label>
+          <input type="month" id="monthFilterInput" onchange="window.renderDashboard()"
+            class="bg-obsidian-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500" />
         </div>
       </div>
 
-      <!-- Primary Row: Monthly Income Earned & Current Monthly Balance -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Monthly Income Earned Card -->
-        <div class="bg-obsidian-900 border border-emerald-500/25 hover:border-emerald-500/45 rounded-2xl p-5 transition relative overflow-hidden">
-          <div class="flex items-center justify-between gap-2 mb-2">
-            <div class="flex items-center gap-2">
-              <div class="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
-                <i data-lucide="wallet" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400 block">Monthly Income Earned</span>
-                <span id="incomeMonthLabel" class="text-[11px] text-slate-400">November 2026</span>
-              </div>
-            </div>
-            <button id="toggleInlineIncomeBtn" type="button" class="text-xs font-medium text-emerald-300 hover:text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition">
-              <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
-              <span>Set Income</span>
+      <!-- KPI Summary Cards (4-Column Responsive Grid) -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Monthly Income / Budget -->
+        <div class="bg-obsidian-900 border border-white/[0.08] rounded-2xl p-5 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-400">Monthly Income / Budget</span>
+            <button type="button" onclick="window.promptMonthlyIncome()"
+              class="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 transition">
+              Edit
             </button>
           </div>
+          <p id="kpiIncome" class="text-2xl font-bold font-mono text-white">D 0.00</p>
+          <p class="text-[11px] text-slate-500">Base income + extra monthly inflows</p>
+        </div>
 
-          <div id="statMonthlyIncome" class="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight mt-2">D 0.00</div>
-
-          <!-- Quick Inline Income Editor -->
-          <div id="inlineIncomeEditor" class="hidden mt-3 pt-3 border-t border-white/[0.08]">
-            <label for="inlineIncomeInput" class="block text-[11px] font-medium text-slate-300 mb-1.5">Enter Total Income Earned This Month</label>
-            <div class="flex items-center gap-2">
-              <div class="relative flex-1 min-w-0">
-                <span id="incomeInputSymbol" class="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-xs text-emerald-400 font-semibold">D</span>
-                <input type="number" id="inlineIncomeInput" min="0" step="100" placeholder="0.00"
-                  class="w-full bg-obsidian-950 border border-white/15 focus:border-emerald-500 rounded-xl pl-8 pr-3 py-2 text-sm font-mono text-white focus:outline-none" />
-              </div>
-              <button id="saveInlineIncomeBtn" type="button" class="bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-xs px-3.5 py-2 rounded-xl transition shrink-0">
-                Save
-              </button>
-              <button id="cancelInlineIncomeBtn" type="button" class="bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 font-medium text-xs px-3 py-2 rounded-xl transition shrink-0">
-                Cancel
-              </button>
-            </div>
+        <!-- Monthly Expenses -->
+        <div class="bg-obsidian-900 border border-white/[0.08] rounded-2xl p-5 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-400">Monthly Expenses</span>
+            <span id="kpiBurnPct" class="text-[11px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded-md">0%</span>
           </div>
-
-          <div id="incomeSubtextRow" class="mt-2.5 flex items-center justify-between text-xs text-slate-400">
-            <span>Net available cashflow for the month</span>
-            <span id="incomeDailyAllowance" class="font-mono text-emerald-400">Daily pace: D 0</span>
+          <p id="kpiExpenses" class="text-2xl font-bold font-mono text-rose-400">D 0.00</p>
+          <div class="w-full h-1.5 bg-obsidian-950 rounded-full overflow-hidden">
+            <div id="kpiProgressBar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 0%"></div>
           </div>
         </div>
 
-        <!-- Current Monthly Remaining Balance Card -->
-        <div id="monthlyBalanceCard" class="bg-obsidian-900 border border-white/[0.1] rounded-2xl p-5 transition relative overflow-hidden">
-          <div class="flex items-center justify-between gap-2 mb-2">
-            <div class="flex items-center gap-2">
-              <div id="balanceIconWrap" class="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
-                <i data-lucide="scale" class="w-4 h-4"></i>
-              </div>
-              <div>
-                <span class="text-xs font-semibold uppercase tracking-wider text-slate-300 block">Current Monthly Balance</span>
-                <span class="text-[11px] text-slate-400">Income Earned − Monthly Expenses</span>
-              </div>
-            </div>
-            <span id="balanceStatusPill" class="text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-              Healthy
-            </span>
+        <!-- Remaining Balance -->
+        <div class="bg-obsidian-900 border border-white/[0.08] rounded-2xl p-5 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-400">Remaining Balance</span>
+            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
           </div>
-
-          <div id="statMonthlyBalance" class="text-2xl sm:text-3xl font-bold font-mono text-emerald-400 tracking-tight mt-2">D 0.00</div>
-
-          <!-- Income Consumption Progress Bar -->
-          <div class="mt-3">
-            <div class="flex items-center justify-between text-[11px] mb-1.5">
-              <span id="incomeUsedLabel" class="text-slate-400">0% of monthly income spent</span>
-              <span id="incomeRemainingPctLabel" class="font-mono text-emerald-400">100% remaining</span>
-            </div>
-            <div class="w-full h-2 bg-obsidian-800 rounded-full overflow-hidden">
-              <div id="incomeUsageProgressBar" class="h-full bg-emerald-400 rounded-full transition-all duration-500" style="width: 0%"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Secondary Row: Today, This Week, This Month & This Year Expenses -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- Today's Expenses -->
-        <div class="bg-obsidian-900 border border-white/[0.08] hover:border-white/[0.15] rounded-2xl p-5 transition relative overflow-hidden">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Today's Expenses</span>
-            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-              <i data-lucide="calendar-check" class="w-4 h-4"></i>
-            </div>
-          </div>
-          <div id="statTodayTotal" class="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">D 0.00</div>
-          <div class="mt-2 flex items-center justify-between text-xs text-slate-400 gap-2">
-            <span id="statTodayCount" class="truncate">0 entries today</span>
-            <span id="statTodayVsAvg" class="font-mono text-emerald-400 shrink-0">—</span>
-          </div>
+          <p id="kpiBalance" class="text-2xl font-bold font-mono text-emerald-400">D 0.00</p>
+          <p class="text-[11px] text-slate-500">Available funds for selected month</p>
         </div>
 
-        <!-- Weekly Expenses -->
-        <div class="bg-obsidian-900 border border-white/[0.08] hover:border-white/[0.15] rounded-2xl p-5 transition relative overflow-hidden">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">This Week</span>
-            <div class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
-              <i data-lucide="calendar-days" class="w-4 h-4"></i>
-            </div>
+        <!-- Daily Safe Spend -->
+        <div class="bg-obsidian-900 border border-white/[0.08] rounded-2xl p-5 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-400">Daily Safe Spend</span>
+            <span id="kpiDaysLeft" class="text-[11px] font-mono text-slate-400">0d left</span>
           </div>
-          <div id="statWeekTotal" class="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">D 0.00</div>
-          <div class="mt-2 flex items-center justify-between text-xs text-slate-400 gap-2">
-            <span id="statWeekAvg" class="truncate">Daily avg: D 0.00</span>
-            <span id="statWeekDelta" class="font-mono text-slate-300 shrink-0">—</span>
-          </div>
+          <p id="kpiDailySafe" class="text-2xl font-bold font-mono text-sky-400">D 0.00</p>
+          <p class="text-[11px] text-slate-500">Recommended daily limit remaining</p>
         </div>
+      </section>
 
-        <!-- Monthly Expenses + Optional Spending Cap -->
-        <div class="bg-obsidian-900 border border-white/[0.08] hover:border-white/[0.15] rounded-2xl p-5 transition relative overflow-hidden">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">This Month Spent</span>
-            <button id="editBudgetBtn" type="button" title="Set Optional Expense Cap" class="text-xs text-slate-400 hover:text-emerald-400 flex items-center gap-1 bg-white/[0.04] hover:bg-white/[0.08] px-2 py-1 rounded-lg border border-white/[0.06] transition shrink-0">
-              <i data-lucide="sliders-horizontal" class="w-3 h-3"></i>
-              <span>Cap</span>
+      <!-- Inline Monthly Income Quick-Set Drawer (Hidden until Edit is clicked) -->
+      <div id="incomeEditorDrawer" class="hidden bg-obsidian-900 border border-emerald-500/30 rounded-2xl p-4 sm:p-5">
+        <form onsubmit="window.saveMonthlyIncome(event)" class="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+          <div class="flex-1">
+            <label for="baseIncomeInput" class="block text-xs font-medium text-emerald-300 mb-1.5">Set Base Monthly Income / Budget</label>
+            <input type="number" id="baseIncomeInput" step="0.01" min="0" required placeholder="0.00"
+              class="w-full bg-obsidian-950 border border-white/15 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:outline-none" />
+          </div>
+          <div class="flex gap-2">
+            <button type="submit" class="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-xs px-5 py-2.5 rounded-xl transition">
+              Save Income
+            </button>
+            <button type="button" onclick="document.getElementById('incomeEditorDrawer').classList.add('hidden')"
+              class="bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 font-medium text-xs px-4 py-2.5 rounded-xl transition">
+              Cancel
             </button>
           </div>
-          <div id="statMonthTotal" class="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">D 0.00</div>
-          <!-- Budget Progress Bar -->
-          <div class="mt-2.5">
-            <div class="flex items-center justify-between text-[11px] mb-1 gap-1">
-              <span id="budgetLabel" class="text-slate-400 truncate">0% of cap</span>
-              <span id="budgetTargetLabel" class="font-mono text-slate-300 shrink-0">Cap: D 25k</span>
-            </div>
-            <div class="w-full h-1.5 bg-obsidian-800 rounded-full overflow-hidden">
-              <div id="budgetProgressBar" class="h-full bg-emerald-400 rounded-full transition-all duration-500" style="width: 0%"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Yearly Expenses -->
-        <div class="bg-obsidian-900 border border-white/[0.08] hover:border-white/[0.15] rounded-2xl p-5 transition relative overflow-hidden">
-          <div class="flex items-center justify-between mb-3">
-            <span id="statYearHeading" class="text-xs font-medium uppercase tracking-wider text-slate-400">This Year (2026)</span>
-            <div class="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
-              <i data-lucide="trending-up" class="w-4 h-4"></i>
-            </div>
-          </div>
-          <div id="statYearTotal" class="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">D 0.00</div>
-          <div class="mt-2 flex items-center justify-between text-xs text-slate-400 gap-2">
-            <span id="statYearMonthlyAvg" class="truncate">Monthly avg: D 0.00</span>
-            <span id="statYearCount" class="font-mono text-slate-300 shrink-0">0 txns</span>
-          </div>
-        </div>
+        </form>
       </div>
-    </section>
 
-    <!-- Section 2: Quick Daily Expense Input Form -->
-    <section id="expenseFormSection" aria-label="Log Daily Expense" class="bg-obsidian-900 border border-white/[0.08] rounded-2xl p-4 sm:p-6 shadow-xl">
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
-            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+      <!-- Quick Transaction Form & Analytics Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Log Entry Card (7 cols on desktop) -->
+        <section class="lg:col-span-7 bg-obsidian-900 border border-white/[0.08] rounded-2xl p-5 sm:p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-base font-semibold text-white">Log New Entry</h2>
+            <span class="text-[11px] text-slate-400">Instant cloud &amp; local save</span>
           </div>
+
+          <form id="entryForm" onsubmit="window.handleAddTransaction(event)" class="space-y-4">
+            <!-- Entry Type Toggle -->
+            <div class="grid grid-cols-2 bg-obsidian-950 p-1 rounded-xl border border-white/10">
+              <button type="button" id="typeExpenseBtn" onclick="window.setEntryType('expense')"
+                class="py-2 rounded-lg text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 transition">
+                − Expense
+              </button>
+              <button type="button" id="typeIncomeBtn" onclick="window.setEntryType('income')"
+                class="py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
+                + Extra Income
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label for="entryTitle" class="block text-xs font-medium text-slate-300 mb-1.5">Description</label>
+                <input type="text" id="entryTitle" required placeholder="e.g., Groceries, Taxi, Freelance"
+                  class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none" />
+              </div>
+              <div>
+                <label for="entryAmount" class="block text-xs font-medium text-slate-300 mb-1.5">Amount</label>
+                <input type="number" id="entryAmount" step="0.01" min="0.01" required placeholder="0.00"
+                  class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white placeholder-slate-600 focus:outline-none" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label for="entryCategory" class="block text-xs font-medium text-slate-300 mb-1.5">Category</label>
+                <select id="entryCategory"
+                  class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none">
+                  <option value="Food & Dining">Food &amp; Dining</option>
+                  <option value="Transport">Transport</option>
+                  <option value="Bills & Utilities">Bills &amp; Utilities</option>
+                  <option value="Shopping">Shopping</option>
+                  <option value="Health">Health</option>
+                  <option value="Entertainment">Entertainment</option>
+                  <option value="Income / Salary">Income / Salary</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label for="entryDate" class="block text-xs font-medium text-slate-300 mb-1.5">Date</label>
+                <input type="date" id="entryDate" required
+                  class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:outline-none" />
+              </div>
+            </div>
+
+            <button type="submit" id="saveEntryBtn"
+              class="w-full bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-obsidian-950 font-semibold text-sm py-3 px-4 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Add to Ledger</span>
+            </button>
+          </form>
+        </section>
+
+        <!-- Category Breakdown Chart Card (5 cols on desktop) -->
+        <section class="lg:col-span-5 bg-obsidian-900 border border-white/[0.08] rounded-2xl p-5 sm:p-6 flex flex-col justify-between">
           <div>
-            <h2 id="formHeading" class="text-base font-semibold text-white">Record Daily Expense</h2>
-            <p class="text-xs text-slate-400">Automatically deducts from your monthly balance and syncs in real time</p>
+            <h2 class="text-base font-semibold text-white">Spending Breakdown</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Expenses by category for selected month</p>
           </div>
-        </div>
-        <button id="cancelEditBtn" type="button" class="hidden text-xs font-medium text-amber-400 hover:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl transition self-start sm:self-auto">
-          Cancel Editing
-        </button>
+          <div class="relative h-56 w-full my-4 flex items-center justify-center">
+            <canvas id="categoryChart"></canvas>
+            <div id="chartEmptyState" class="text-center space-y-1">
+              <p class="text-xs font-medium text-slate-400">No expenses logged this month</p>
+              <p class="text-[11px] text-slate-600">Add an expense to see category insights</p>
+            </div>
+          </div>
+          <div id="categoryLegend" class="grid grid-cols-2 gap-2 text-xs"></div>
+        </section>
+
       </div>
 
-      <form id="expenseForm" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 sm:gap-4">
-        <input type="hidden" id="editExpenseId" value="" />
-
-        <!-- Amount -->
-        <div class="lg:col-span-2">
-          <label for="expenseAmount" class="block text-xs font-medium text-slate-300 mb-1.5">Amount *</label>
-          <div class="relative">
-            <span id="inputCurrencySymbol" class="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-sm text-emerald-400 font-semibold">D</span>
-            <input type="number" id="expenseAmount" step="0.01" min="0.01" required placeholder="0.00"
-              class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono text-white placeholder-slate-600 focus:outline-none transition" />
+      <!-- Transaction History Ledger -->
+      <section class="bg-obsidian-900 border border-white/[0.08] rounded-2xl p-5 sm:p-6 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-semibold text-white">Ledger History</h2>
+            <p id="ledgerCountText" class="text-xs text-slate-400">0 entries recorded</p>
           </div>
-        </div>
-
-        <!-- Description -->
-        <div class="lg:col-span-3">
-          <label for="expenseTitle" class="block text-xs font-medium text-slate-300 mb-1.5">Description / Title *</label>
-          <input type="text" id="expenseTitle" required maxlength="80" placeholder="e.g., Fresh groceries & produce"
-            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none transition" />
-        </div>
-
-        <!-- Category -->
-        <div class="lg:col-span-2">
-          <label for="expenseCategory" class="block text-xs font-medium text-slate-300 mb-1.5">Category *</label>
-          <div class="relative">
-            <select id="expenseCategory" required
-              class="w-full appearance-none bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl pl-3.5 pr-8 py-2.5 text-sm text-white focus:outline-none transition cursor-pointer">
-              <option value="Food & Dining">Food & Dining</option>
-              <option value="Transport & Fuel">Transport & Fuel</option>
-              <option value="Utilities & Bills">Utilities & Bills</option>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input type="text" id="searchInput" oninput="window.renderDashboard()" placeholder="Search description..."
+              class="bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none" />
+            <select id="categoryFilter" onchange="window.renderDashboard()"
+              class="bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
+              <option value="ALL">All Categories</option>
+              <option value="Food & Dining">Food &amp; Dining</option>
+              <option value="Transport">Transport</option>
+              <option value="Bills & Utilities">Bills &amp; Utilities</option>
               <option value="Shopping">Shopping</option>
               <option value="Health">Health</option>
               <option value="Entertainment">Entertainment</option>
-              <option value="Housing">Housing</option>
+              <option value="Income / Salary">Income / Salary</option>
               <option value="Other">Other</option>
             </select>
-            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
           </div>
         </div>
 
-        <!-- Date -->
-        <div class="lg:col-span-2">
-          <label for="expenseDate" class="block text-xs font-medium text-slate-300 mb-1.5">Date *</label>
-          <input type="date" id="expenseDate" required
-            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2.5 text-sm font-mono text-white focus:outline-none transition [color-scheme:dark]" />
+        <!-- Transactions List -->
+        <div id="transactionsList" class="divide-y divide-white/[0.06]">
+          <!-- Rendered dynamically -->
         </div>
+      </section>
 
-        <!-- Payment Method -->
-        <div class="lg:col-span-3">
-          <label for="expensePayment" class="block text-xs font-medium text-slate-300 mb-1.5">Payment Method</label>
-          <div class="relative">
-            <select id="expensePayment"
-              class="w-full appearance-none bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl pl-3.5 pr-8 py-2.5 text-sm text-white focus:outline-none transition cursor-pointer">
-              <option value="Mobile Money">Mobile Money</option>
-              <option value="Cash">Cash</option>
-              <option value="Card">Card</option>
-              <option value="Bank Transfer">Bank Transfer</option>
-            </select>
-            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-          </div>
-        </div>
-
-        <!-- Optional Notes & Submit Button Row -->
-        <div class="sm:col-span-2 lg:col-span-9">
-          <label for="expenseNotes" class="block text-xs font-medium text-slate-300 mb-1.5">Optional Notes / Tags</label>
-          <input type="text" id="expenseNotes" maxlength="140" placeholder="Vendor name, receipt number, or extra context..."
-            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none transition" />
-        </div>
-
-        <div class="sm:col-span-2 lg:col-span-3 flex items-end">
-          <button type="submit" id="submitExpenseBtn"
-            class="w-full bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-sm py-2.5 px-5 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-[0.99]">
-            <i data-lucide="check" class="w-4 h-4 stroke-[2.5]"></i>
-            <span id="submitBtnText">Save Expense</span>
-          </button>
-        </div>
-      </form>
-    </section>
-
-    <!-- Section 3: Interactive Charts & Category Breakdown -->
-    <section aria-label="Visual Spending Analytics" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      <!-- Left 7 Cols: Time-Series Trend Chart -->
-      <div class="lg:col-span-7 bg-obsidian-900 border border-white/[0.08] rounded-2xl p-4 sm:p-6 flex flex-col justify-between min-w-0">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-          <div>
-            <h3 class="text-base font-semibold text-white">Spending Trajectory</h3>
-            <p id="trendChartSubtitle" class="text-xs text-slate-400">Daily breakdown for the current week</p>
-          </div>
-          <!-- Timeframe Segmented Control -->
-          <div class="inline-flex bg-obsidian-950 p-1 rounded-xl border border-white/[0.08] self-start">
-            <button type="button" data-chart-period="week" class="chart-period-btn px-3 py-1.5 rounded-lg text-xs font-medium transition bg-emerald-500 text-obsidian-950 font-semibold">
-              Weekly
-            </button>
-            <button type="button" data-chart-period="month" class="chart-period-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
-              Monthly
-            </button>
-            <button type="button" data-chart-period="year" class="chart-period-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
-              Yearly
-            </button>
-          </div>
-        </div>
-
-        <div class="relative w-full h-60 sm:h-72 overflow-hidden">
-          <canvas id="trendChartCanvas"></canvas>
-        </div>
-      </div>
-
-      <!-- Right 5 Cols: Category Distribution -->
-      <div class="lg:col-span-5 bg-obsidian-900 border border-white/[0.08] rounded-2xl p-4 sm:p-6 flex flex-col justify-between min-w-0">
-        <div class="flex items-center justify-between gap-2 mb-4">
-          <div>
-            <h3 class="text-base font-semibold text-white">Category Breakdown</h3>
-            <p class="text-xs text-slate-400">Share of total spending</p>
-          </div>
-          <select id="categoryPeriodSelect" aria-label="Category Breakdown Timeframe" class="bg-obsidian-950 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer">
-            <option value="week">This Week</option>
-            <option value="month" selected>This Month</option>
-            <option value="year">This Year</option>
-            <option value="all">All Time</option>
-          </select>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 items-center">
-          <div class="relative h-44 flex items-center justify-center overflow-hidden">
-            <canvas id="categoryChartCanvas"></canvas>
-            <div id="doughnutCenterText" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span class="text-[10px] uppercase tracking-wider text-slate-400">Total</span>
-              <span id="doughnutTotalAmount" class="text-sm font-bold font-mono text-white">D 0</span>
-            </div>
-          </div>
-
-          <!-- Top Categories Progress List -->
-          <div id="categoryLegendList" class="space-y-2.5 max-h-44 overflow-y-auto pr-1">
-            <!-- Populated dynamically -->
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Section 4: Searchable & Filterable Expense Ledger (Vertical-Only Responsive Layout) -->
-    <section aria-label="Searchable Expense Ledger" class="bg-obsidian-900 border border-white/[0.08] rounded-2xl p-4 sm:p-6 space-y-5">
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h3 class="text-base font-semibold text-white flex flex-wrap items-center gap-2">
-            <span>Expense Ledger</span>
-            <span id="ledgerCountBadge" class="text-xs font-mono bg-white/[0.07] text-slate-300 px-2.5 py-0.5 rounded-full">0 records</span>
-          </h3>
-          <p class="text-xs text-slate-400">Search by title, notes, or amount — filter across any timeframe or category</p>
-        </div>
-
-        <!-- Filtered Subset Total Pill -->
-        <div class="bg-obsidian-950 border border-white/[0.08] rounded-xl px-4 py-2 flex items-center gap-3 self-start md:self-auto">
-          <span class="text-xs text-slate-400">Filtered Total:</span>
-          <span id="filteredSumDisplay" class="font-mono text-sm font-bold text-emerald-400">D 0.00</span>
-        </div>
-      </div>
-
-      <!-- Search & Filter Controls Bar -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
-        <!-- Real-time Search -->
-        <div class="sm:col-span-2 lg:col-span-4 relative">
-          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-          <input type="text" id="searchInput" placeholder="Search description, notes, or amount..."
-            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl pl-10 pr-8 py-2 text-sm text-white placeholder-slate-500 focus:outline-none transition" />
-          <button id="clearSearchBtn" type="button" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
-            <i data-lucide="x" class="w-4 h-4"></i>
-          </button>
-        </div>
-
-        <!-- Period Filter -->
-        <div class="lg:col-span-2">
-          <select id="filterPeriod" aria-label="Filter by Period" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none cursor-pointer">
-            <option value="all">All Time</option>
-            <option value="today">Today</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="year">This Year</option>
-            <option value="custom">Custom Range...</option>
-          </select>
-        </div>
-
-        <!-- Category Filter -->
-        <div class="lg:col-span-2">
-          <select id="filterCategory" aria-label="Filter by Category" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none cursor-pointer">
-            <option value="all">All Categories</option>
-            <option value="Food & Dining">Food & Dining</option>
-            <option value="Transport & Fuel">Transport & Fuel</option>
-            <option value="Utilities & Bills">Utilities & Bills</option>
-            <option value="Shopping">Shopping</option>
-            <option value="Health">Health</option>
-            <option value="Entertainment">Entertainment</option>
-            <option value="Housing">Housing</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-
-        <!-- Payment Filter -->
-        <div class="lg:col-span-2">
-          <select id="filterPayment" aria-label="Filter by Payment Method" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none cursor-pointer">
-            <option value="all">All Payments</option>
-            <option value="Mobile Money">Mobile Money</option>
-            <option value="Cash">Cash</option>
-            <option value="Card">Card</option>
-            <option value="Bank Transfer">Bank Transfer</option>
-          </select>
-        </div>
-
-        <!-- Sort Selector -->
-        <div class="lg:col-span-2">
-          <select id="sortSelect" aria-label="Sort Expenses" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none cursor-pointer">
-            <option value="date-desc">Newest First</option>
-            <option value="date-asc">Oldest First</option>
-            <option value="amount-desc">Highest Amount</option>
-            <option value="amount-asc">Lowest Amount</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Custom Date Range Row -->
-      <div id="customDateRangeRow" class="hidden flex flex-wrap items-center gap-3 pt-1 pb-2 px-3 bg-obsidian-950/70 rounded-xl border border-white/[0.06]">
-        <span class="text-xs font-medium text-slate-400">Custom Range:</span>
-        <div class="flex items-center gap-2">
-          <label for="filterDateFrom" class="text-xs text-slate-500">From</label>
-          <input type="date" id="filterDateFrom" class="bg-obsidian-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white [color-scheme:dark]" />
-        </div>
-        <div class="flex items-center gap-2">
-          <label for="filterDateTo" class="text-xs text-slate-500">To</label>
-          <input type="date" id="filterDateTo" class="bg-obsidian-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white [color-scheme:dark]" />
-        </div>
-        <button id="resetFiltersBtn" type="button" class="ml-auto text-xs text-emerald-400 hover:underline">Reset All Filters</button>
-      </div>
-
-      <!-- Vertical-Only Responsive Ledger List (Zero Horizontal Overflow) -->
-      <div class="rounded-xl border border-white/[0.06] overflow-hidden">
-        <!-- Desktop Header -->
-        <div class="hidden md:grid md:grid-cols-12 gap-3 bg-obsidian-950/90 border-b border-white/[0.08] py-3.5 px-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-          <div class="col-span-2">Date</div>
-          <div class="col-span-4">Description</div>
-          <div class="col-span-2">Category</div>
-          <div class="col-span-1">Method</div>
-          <div class="col-span-2 text-right">Amount</div>
-          <div class="col-span-1 text-right">Actions</div>
-        </div>
-
-        <!-- Ledger Rows Container -->
-        <div id="expenseLedgerList" class="divide-y divide-white/[0.06]">
-          <!-- Dynamically injected responsive rows -->
-        </div>
-      </div>
-
-      <!-- Empty State -->
-      <div id="emptyLedgerState" class="hidden py-12 text-center space-y-3">
-        <div class="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto text-slate-400">
-          <i data-lucide="inbox" class="w-6 h-6"></i>
-        </div>
-        <h4 class="text-sm font-semibold text-white">No expenses recorded yet</h4>
-        <p class="text-xs text-slate-400 max-w-sm mx-auto">Log your first daily expense using the form above or adjust your active search filters.</p>
-        <div class="pt-2 flex flex-wrap items-center justify-center gap-3">
-          <button id="emptyResetFiltersBtn" type="button" class="text-xs bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 px-3.5 py-2 rounded-xl border border-white/10 transition">
-            Reset Filters
-          </button>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- Custom Modal: Optional Monthly Expense Cap Editor -->
-  <div id="budgetModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-obsidian-900 border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="text-base font-semibold text-white">Set Optional Monthly Expense Cap</h3>
-        <button id="closeBudgetModalBtn" type="button" class="text-slate-400 hover:text-white">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-      <p class="text-xs text-slate-400">Set an optional monthly spending ceiling for the current month alongside your monthly income tracking.</p>
-      <div>
-        <label for="monthlyBudgetInput" class="block text-xs font-medium text-slate-300 mb-1.5">Monthly Expense Cap</label>
-        <input type="number" id="monthlyBudgetInput" min="1" step="100" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:outline-none" />
-      </div>
-      <div class="flex justify-end gap-2.5 pt-2">
-        <button id="cancelBudgetBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 bg-obsidian-800 hover:bg-obsidian-700 transition">Cancel</button>
-        <button id="saveBudgetBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold text-obsidian-950 bg-emerald-500 hover:bg-emerald-400 transition">Save Cap</button>
-      </div>
-    </div>
+    </main>
   </div>
 
-  <!-- Custom Modal: Cloud Setup & Self-Hosting Info -->
-  <div id="cloudSetupModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-obsidian-900 border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-auto">
+  <!-- ===================================================================== -->
+  <!-- SELF-HOSTING CLOUD SETUP INFO MODAL                                   -->
+  <!-- ===================================================================== -->
+  <div id="setupModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div class="w-full max-w-md bg-obsidian-900 border border-white/10 rounded-3xl p-6 space-y-4 my-auto shadow-2xl">
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <i data-lucide="cloud-cog" class="w-5 h-5 text-emerald-400"></i>
-          <h3 class="text-base font-semibold text-white">Cloud Sync & Self-Hosting Guide</h3>
-        </div>
-        <button id="closeSetupModalBtn" type="button" class="text-slate-400 hover:text-white">
-          <i data-lucide="x" class="w-5 h-5"></i>
+        <h3 class="text-base font-bold text-white">Cloud Backend Status</h3>
+        <button type="button" onclick="window.toggleSetupModal(false)" class="text-slate-400 hover:text-white p-1">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
         </button>
       </div>
       <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <div class="bg-obsidian-950 border border-emerald-500/25 rounded-xl p-3 space-y-1">
+          <p class="text-emerald-400 font-semibold">Firebase Project Connected</p>
+          <p class="font-mono text-[11px] text-slate-400">Project ID: expenses-f84af</p>
+          <p class="font-mono text-[11px] text-slate-400">Auth Domain: expenses-f84af.firebaseapp.com</p>
+        </div>
         <p>
-          <strong>Obsidian Ledger</strong> uses Firebase Authentication and Cloud Firestore with offline persistence so your expenses and monthly income sync automatically across your phone and computer.
+          Your app is pre-configured to sync every transaction privately under <code class="text-emerald-300">users/{your_uid}/expenses</code>.
         </p>
-        <div class="bg-obsidian-950 border border-white/10 rounded-xl p-3.5 space-y-2">
-          <p class="font-semibold text-emerald-400">If hosting your own copy on Netlify or GitHub Pages:</p>
-          <ol class="list-decimal list-inside space-y-1.5 text-slate-400">
-            <li>Create a free project at <span class="text-slate-200 font-mono">console.firebase.google.com</span>.</li>
-            <li>Enable <strong>Authentication</strong> (Email/Password and Google providers) and add your hosting domain under <em>Authorized Domains</em>.</li>
-            <li>Enable <strong>Cloud Firestore</strong> and set security rules so each user can only read/write their own <span class="text-slate-200 font-mono">users/{uid}</span> data.</li>
-            <li>Paste your web app's <span class="text-slate-200 font-mono">firebaseConfig</span> object into the <span class="text-slate-200 font-mono">FALLBACK_FIREBASE_CONFIG</span> constant inside this file's script.</li>
-          </ol>
-        </div>
         <p class="text-slate-400">
-          Without a custom Firebase config on an external host, you can still use <strong>Local Offline Mode</strong> with full CSV/JSON backup & restore.
+          Tap <strong>Create Account</strong> on the login screen to register your personal email &amp; password, or use <strong>Continue in Local Offline Mode</strong> anytime.
         </p>
       </div>
-      <div class="flex justify-end pt-2">
-        <button id="okSetupModalBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold text-obsidian-950 bg-emerald-500 hover:bg-emerald-400 transition">Got It</button>
-      </div>
+      <button type="button" onclick="window.toggleSetupModal(false)"
+        class="w-full bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-xs py-2.5 rounded-xl transition">
+        Close
+      </button>
     </div>
   </div>
 
-  <!-- Custom Modal: Confirmation Dialog -->
-  <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-obsidian-900 border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/25 flex items-center justify-center text-rose-400 shrink-0">
-          <i data-lucide="alert-triangle" class="w-5 h-5"></i>
-        </div>
-        <div>
-          <h3 id="confirmModalTitle" class="text-base font-semibold text-white">Confirm Action</h3>
-          <p id="confirmModalMessage" class="text-xs text-slate-400 mt-0.5">Are you sure you want to proceed?</p>
-        </div>
-      </div>
-      <div class="flex justify-end gap-2.5 pt-2">
-        <button id="confirmCancelBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 bg-obsidian-800 hover:bg-obsidian-700 transition">Cancel</button>
-        <button id="confirmProceedBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition">Confirm</button>
-      </div>
-    </div>
-  </div>
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-full max-w-sm px-4"></div>
 
-  <!-- Toast Notification Banner -->
-  <div id="toastContainer" class="fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 pointer-events-none"></div>
+  <!-- ===================================================================== -->
+  <!-- HARDENED APPLICATION SCRIPT (ZERO SILENT CRASHES)                     -->
+  <!-- ===================================================================== -->
+  <script>
+    (function () {
+      'use strict';
 
-  <!-- Firebase SDK Module & Core Application Logic -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
-    import {
-      getAuth,
-      onAuthStateChanged,
-      signInWithEmailAndPassword,
-      createUserWithEmailAndPassword,
-      GoogleAuthProvider,
-      signInWithPopup,
-      signOut
-    } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
-    import {
-      getFirestore,
-      initializeFirestore,
-      persistentLocalCache,
-      persistentMultipleTabManager,
-      doc,
-      setDoc,
-      deleteDoc,
-      onSnapshot,
-      collection,
-      writeBatch
-    } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+      // 1. Pre-wired Firebase Configuration (expenses-f84af)
+      var firebaseConfig = {
+        apiKey: "AIzaSyDOfPs8AQvYDrgCrtHitrALvpZyIFwCkkc",
+        authDomain: "expenses-f84af.firebaseapp.com",
+        projectId: "expenses-f84af",
+        storageBucket: "expenses-f84af.firebasestorage.app",
+        messagingSenderId: "892472768889",
+        appId: "1:892472768889:web:fd816367a33053dbb7d7a8",
+        measurementId: "G-1KMK96XZV9"
+      };
 
-    /**
-     * ============================================================================
-     * OBSIDIAN LEDGER — FIREBASE CLOUD SYNC & FINANCIAL ENGINE
-     * ============================================================================
-     */
+      // 2. Application State
+      var state = {
+        authMode: 'signin', // 'signin' | 'signup'
+        entryType: 'expense', // 'expense' | 'income'
+        user: null,
+        isOffline: false,
+        currency: 'GMD',
+        baseIncome: 0,
+        transactions: [],
+        unsubscribeExpenses: null,
+        unsubscribeProfile: null,
+        chartInstance: null
+      };
 
-    // Pre-wired Firebase Project Credentials (expenses-f84af)
-    const firebaseConfig = {
-      apiKey: "AIzaSyDOfPs8AQvYDrgCrtHitrALvpZyIFwCkkc",
-      authDomain: "expenses-f84af.firebaseapp.com",
-      projectId: "expenses-f84af",
-      storageBucket: "expenses-f84af.firebasestorage.app",
-      messagingSenderId: "892472768889",
-      appId: "1:892472768889:web:fd816367a33053dbb7d7a8",
-      measurementId: "G-1KMK96XZV9"
-    };
+      var CURRENCY_SYMBOLS = {
+        GMD: 'D',
+        USD: '$',
+        EUR: '€',
+        GBP: '£'
+      };
 
-    let firebaseApp = null;
-    let auth = null;
-    let db = null;
-    let firebaseReady = false;
+      var CATEGORY_COLORS = {
+        'Food & Dining': '#10b981',
+        'Transport': '#38bdf8',
+        'Bills & Utilities': '#f59e0b',
+        'Shopping': '#a855f7',
+        'Health': '#f43f5e',
+        'Entertainment': '#ec4899',
+        'Income / Salary': '#34d399',
+        'Other': '#64748b'
+      };
 
-    if (firebaseConfig && firebaseConfig.apiKey) {
+      // 3. Safe Firebase Initialization
+      var firebaseAvailable = false;
       try {
-        firebaseApp = initializeApp(firebaseConfig);
-        auth = getAuth(firebaseApp);
-        try {
-          db = initializeFirestore(firebaseApp, {
-            localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-          });
-        } catch (cacheErr) {
-          db = getFirestore(firebaseApp);
+        if (typeof firebase !== 'undefined' && firebase.apps) {
+          if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+          }
+          firebaseAvailable = true;
         }
-        firebaseReady = true;
       } catch (initErr) {
-        console.error('Firebase initialization failed:', initErr);
+        console.warn('Firebase SDK initialization warning:', initErr);
       }
-    }
 
-    const CATEGORIES = {
-      'Food & Dining':     { color: '#10b981', bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/25', icon: 'utensils' },
-// ... existing code ... -->
-      } else {
-        dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
-        text.className = 'text-slate-400';
-        text.textContent = labelText || 'Offline Mode';
+      // 4. UI Helper Functions
+      function showToast(message, isError) {
+        var container = document.getElementById('toastContainer');
+        if (!container) return;
+        var toast = document.createElement('div');
+        toast.className = 'px-4 py-2.5 rounded-xl text-xs font-medium shadow-xl border backdrop-blur-md transition-all duration-300 ' +
+          (isError
+            ? 'bg-rose-950/90 border-rose-500/40 text-rose-200'
+            : 'bg-obsidian-850/95 border-emerald-500/30 text-emerald-200');
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(function () {
+          toast.style.opacity = '0';
+          setTimeout(function () {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+          }, 300);
+        }, 3200);
       }
-    }
 
-    // Private Per-User Firestore Paths (Matches your Firestore Security Rules):
-    // Expenses subcollection: users/{uid}/expenses/{expenseId}
-    // User profile settings doc: users/{uid}/settings/profile
-    function getUserExpensesCollection(uid) {
-      return collection(db, 'users', uid, 'expenses');
-    }
+      function showAuthError(msg) {
+        var box = document.getElementById('authErrorBox');
+        var text = document.getElementById('authErrorText');
+        if (box && text) {
+          text.textContent = msg;
+          box.classList.remove('hidden');
+        }
+        showToast(msg, true);
+      }
 
-    function getUserExpenseDoc(uid, expenseId) {
-      return doc(db, 'users', uid, 'expenses', expenseId);
-    }
+      function clearAuthError() {
+        var box = document.getElementById('authErrorBox');
+        if (box) box.classList.add('hidden');
+      }
 
-    function getUserProfileDoc(uid) {
-      return doc(db, 'users', uid, 'settings', 'profile');
-    }
+      function formatMoney(amount) {
+        var sym = CURRENCY_SYMBOLS[state.currency] || 'D';
+        var num = Number(amount) || 0;
+        return sym + ' ' + num.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      }
 
-    // ============================================================================
-    // LOCAL OFFLINE STORAGE & MIGRATION HELPERS
-    // ============================================================================
-// ... existing code ... -->
-      // ============================================================================
-      // INITIALIZE AUTHENTICATION STATE
-      // ============================================================================
-      if (firebaseReady && auth) {
-        onAuthStateChanged(auth, (user) => {
-          if (user) {
-            hideAuthGate();
-            attachCloudListeners(user);
+      function getTodayISO() {
+        var now = new Date();
+        var y = now.getFullYear();
+        var m = String(now.getMonth() + 1).padStart(2, '0');
+        var d = String(now.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + d;
+      }
+
+      function getCurrentMonthISO() {
+        return getTodayISO().slice(0, 7);
+      }
+
+      // 5. Global Interactive Handlers (Bound directly to window for instant touch response)
+      window.switchAuthMode = function (mode) {
+        state.authMode = mode;
+        clearAuthError();
+        var signInTab = document.getElementById('tabSignInBtn');
+        var signUpTab = document.getElementById('tabSignUpBtn');
+        var submitText = document.getElementById('authSubmitText');
+        var nameGroup = document.getElementById('displayNameGroup');
+        var passInput = document.getElementById('authPassword');
+
+        if (mode === 'signup') {
+          signUpTab.className = 'py-2.5 rounded-lg text-xs font-semibold bg-emerald-500 text-obsidian-950 transition';
+          signInTab.className = 'py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition';
+          submitText.textContent = 'Create Cloud Account';
+          nameGroup.classList.remove('hidden');
+          passInput.setAttribute('autocomplete', 'new-password');
+        } else {
+          signInTab.className = 'py-2.5 rounded-lg text-xs font-semibold bg-emerald-500 text-obsidian-950 transition';
+          signUpTab.className = 'py-2.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition';
+          submitText.textContent = 'Sign In to Cloud';
+          nameGroup.classList.add('hidden');
+          passInput.setAttribute('autocomplete', 'current-password');
+        }
+      };
+
+      window.toggleSetupModal = function (show) {
+        var modal = document.getElementById('setupModal');
+        if (!modal) return;
+        if (show) {
+          modal.classList.remove('hidden');
+        } else {
+          modal.classList.add('hidden');
+        }
+      };
+
+      window.handleEmailAuth = function (e) {
+        if (e) e.preventDefault();
+        clearAuthError();
+
+        if (!firebaseAvailable) {
+          showAuthError('Cloud service is still loading or blocked by network. Check your connection or tap "Continue in Local Offline Mode".');
+          return;
+        }
+
+        var email = (document.getElementById('authEmail').value || '').trim();
+        var password = document.getElementById('authPassword').value || '';
+        var displayName = (document.getElementById('authDisplayName').value || '').trim();
+        var btn = document.getElementById('authSubmitBtn');
+        var btnText = document.getElementById('authSubmitText');
+
+        if (!email || password.length < 6) {
+          showAuthError('Please enter a valid email and a password of at least 6 characters.');
+          return;
+        }
+
+        btn.disabled = true;
+        var prevLabel = btnText.textContent;
+        btnText.textContent = state.authMode === 'signup' ? 'Creating Account...' : 'Signing In...';
+
+        var authPromise = state.authMode === 'signup'
+          ? firebase.auth().createUserWithEmailAndPassword(email, password)
+          : firebase.auth().signInWithEmailAndPassword(email, password);
+
+        authPromise
+          .then(function (cred) {
+            if (state.authMode === 'signup' && displayName && cred.user) {
+              return cred.user.updateProfile({ displayName: displayName }).catch(function () {});
+            }
+          })
+          .then(function () {
+            btn.disabled = false;
+            btnText.textContent = prevLabel;
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            btnText.textContent = prevLabel;
+            var msg = err && err.message ? err.message : 'Unable to authenticate.';
+            if (err && err.code === 'auth/email-already-in-use') {
+              msg = 'This email is already registered. Switch to the "Sign In" tab.';
+            } else if (err && (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found')) {
+              msg = 'Incorrect email or password. If you are new, tap "Create Account" above.';
+            } else if (err && err.code === 'auth/unauthorized-domain') {
+              msg = 'Domain not authorized in Firebase Console. Add this domain under Authentication → Settings → Authorized domains.';
+            }
+            showAuthError(msg);
+          });
+      };
+
+      window.handleGoogleSignIn = function () {
+        clearAuthError();
+        if (!firebaseAvailable) {
+          showAuthError('Cloud service unavailable. You can use Local Offline Mode below.');
+          return;
+        }
+        var provider = new firebase.auth.GoogleAuthProvider();
+        firebase.auth().signInWithPopup(provider).catch(function (err) {
+          if (err && (err.code === 'auth/popup-blocked' || err.code === 'auth/operation-not-supported-in-this-environment')) {
+            firebase.auth().signInWithRedirect(provider).catch(function (redirErr) {
+              showAuthError(redirErr.message || 'Google Sign-In failed.');
+            });
           } else {
-            detachCloudListeners();
-            refreshAll();
-            showAuthGate('signin');
+            showAuthError(err.message || 'Google Sign-In failed.');
+          }
+        });
+      };
+
+      window.enterOfflineMode = function () {
+        clearAuthError();
+        state.user = null;
+        state.isOffline = true;
+        loadLocalData();
+        showDashboardUI();
+        showToast('Running in Local Offline Mode');
+      };
+
+      window.handleSignOut = function () {
+        if (state.unsubscribeExpenses) {
+          state.unsubscribeExpenses();
+          state.unsubscribeExpenses = null;
+        }
+        if (state.unsubscribeProfile) {
+          state.unsubscribeProfile();
+          state.unsubscribeProfile = null;
+        }
+
+        if (state.isOffline || !firebaseAvailable || !firebase.auth().currentUser) {
+          state.user = null;
+          state.isOffline = false;
+          state.transactions = [];
+          state.baseIncome = 0;
+          showAuthUI();
+          return;
+        }
+
+        firebase.auth().signOut()
+          .then(function () {
+            state.user = null;
+            state.transactions = [];
+            state.baseIncome = 0;
+            showAuthUI();
+            showToast('Signed out');
+          })
+          .catch(function (err) {
+            showToast(err.message || 'Error signing out', true);
+          });
+      };
+
+      // 6. Dashboard View & Data Sync
+      function showAuthUI() {
+        document.getElementById('appShell').classList.add('hidden');
+        document.getElementById('authGateOverlay').classList.remove('hidden');
+      }
+
+      function showDashboardUI() {
+        document.getElementById('authGateOverlay').classList.add('hidden');
+        document.getElementById('appShell').classList.remove('hidden');
+
+        var syncDot = document.getElementById('syncDot');
+        var syncLabel = document.getElementById('syncLabel');
+        var userDisplay = document.getElementById('activeUserDisplay');
+        var signOutText = document.getElementById('signOutBtnText');
+
+        if (state.user) {
+          syncDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+          syncLabel.textContent = 'Synced to Cloud';
+          syncLabel.className = 'text-[11px] text-emerald-400 font-medium truncate';
+          userDisplay.textContent = state.user.displayName
+            ? state.user.displayName + ' (' + state.user.email + ')'
+            : state.user.email;
+          signOutText.textContent = 'Sign Out';
+        } else {
+          syncDot.className = 'w-2 h-2 rounded-full bg-amber-400';
+          syncLabel.textContent = 'Local Offline Mode';
+          syncLabel.className = 'text-[11px] text-amber-400 font-medium truncate';
+          userDisplay.textContent = 'Local Offline Device Storage';
+          signOutText.textContent = 'Exit Offline';
+        }
+
+        document.getElementById('currencySelect').value = state.currency;
+        window.renderDashboard();
+      }
+
+      function loadLocalData() {
+        try {
+          var rawTx = localStorage.getItem('obsidian_ledger_tx_v1');
+          var rawProfile = localStorage.getItem('obsidian_ledger_profile_v1');
+          state.transactions = rawTx ? JSON.parse(rawTx) : [];
+          if (rawProfile) {
+            var prof = JSON.parse(rawProfile);
+            state.baseIncome = Number(prof.baseIncome) || 0;
+            state.currency = prof.currency || 'GMD';
+          } else {
+            state.baseIncome = 0;
+            state.currency = 'GMD';
+          }
+        } catch (e) {
+          state.transactions = [];
+          state.baseIncome = 0;
+        }
+      }
+
+      function saveLocalData() {
+        try {
+          localStorage.setItem('obsidian_ledger_tx_v1', JSON.stringify(state.transactions));
+          localStorage.setItem('obsidian_ledger_profile_v1', JSON.stringify({
+            baseIncome: state.baseIncome,
+            currency: state.currency
+          }));
+        } catch (e) {
+          console.warn('Local storage save failed:', e);
+        }
+      }
+
+      function startCloudListeners(user) {
+        if (!firebaseAvailable) return;
+        var db = firebase.firestore();
+        var uid = user.uid;
+
+        // Listen to profile settings
+        var profileRef = db.collection('users').doc(uid).collection('settings').doc('profile');
+        state.unsubscribeProfile = profileRef.onSnapshot(function (docSnap) {
+          if (docSnap.exists) {
+            var data = docSnap.data() || {};
+            state.baseIncome = Number(data.baseIncome) || 0;
+            state.currency = data.currency || 'GMD';
+            document.getElementById('currencySelect').value = state.currency;
+          } else {
+            state.baseIncome = 0;
+          }
+          window.renderDashboard();
+        }, function (err) {
+          console.error('Profile sync error:', err);
+          showToast('Firestore sync warning: ' + err.message, true);
+        });
+
+        // Listen to user expenses/transactions
+        var txRef = db.collection('users').doc(uid).collection('expenses');
+        state.unsubscribeExpenses = txRef.onSnapshot(function (snapshot) {
+          var list = [];
+          snapshot.forEach(function (doc) {
+            var d = doc.data();
+            list.push({
+              id: doc.id,
+              title: d.title || 'Untitled',
+              amount: Number(d.amount) || 0,
+              category: d.category || 'Other',
+              date: d.date || getTodayISO(),
+              type: d.type || 'expense',
+              createdAt: d.createdAt || 0
+            });
+          });
+          list.sort(function (a, b) {
+            if (b.date !== a.date) return b.date.localeCompare(a.date);
+            return (b.createdAt || 0) - (a.createdAt || 0);
+          });
+          state.transactions = list;
+          window.renderDashboard();
+        }, function (err) {
+          console.error('Expenses sync error:', err);
+          showToast('Firestore read error: ' + err.message, true);
+        });
+      }
+
+      // 7. Entry Form & Profile Actions
+      window.setEntryType = function (type) {
+        state.entryType = type;
+        var expBtn = document.getElementById('typeExpenseBtn');
+        var incBtn = document.getElementById('typeIncomeBtn');
+        var catSelect = document.getElementById('entryCategory');
+
+        if (type === 'income') {
+          incBtn.className = 'py-2 rounded-lg text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 transition';
+          expBtn.className = 'py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition';
+          catSelect.value = 'Income / Salary';
+        } else {
+          expBtn.className = 'py-2 rounded-lg text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30 transition';
+          incBtn.className = 'py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition';
+          if (catSelect.value === 'Income / Salary') {
+            catSelect.value = 'Food & Dining';
+          }
+        }
+      };
+
+      window.promptMonthlyIncome = function () {
+        var drawer = document.getElementById('incomeEditorDrawer');
+        var input = document.getElementById('baseIncomeInput');
+        input.value = state.baseIncome > 0 ? state.baseIncome : '';
+        drawer.classList.remove('hidden');
+        input.focus();
+      };
+
+      window.saveMonthlyIncome = function (e) {
+        if (e) e.preventDefault();
+        var val = parseFloat(document.getElementById('baseIncomeInput').value);
+        if (isNaN(val) || val < 0) {
+          showToast('Enter a valid non-negative amount', true);
+          return;
+        }
+        state.baseIncome = val;
+        document.getElementById('incomeEditorDrawer').classList.add('hidden');
+
+        if (state.user && firebaseAvailable) {
+          firebase.firestore().collection('users').doc(state.user.uid)
+            .collection('settings').doc('profile')
+            .set({ baseIncome: state.baseIncome, currency: state.currency }, { merge: true })
+            .then(function () {
+              showToast('Monthly income updated in cloud');
+            })
+            .catch(function (err) {
+              showToast('Save failed: ' + err.message, true);
+            });
+        } else {
+          saveLocalData();
+          window.renderDashboard();
+          showToast('Monthly income saved locally');
+        }
+      };
+
+      window.handleCurrencyChange = function (newCurrency) {
+        state.currency = newCurrency;
+        if (state.user && firebaseAvailable) {
+          firebase.firestore().collection('users').doc(state.user.uid)
+            .collection('settings').doc('profile')
+            .set({ baseIncome: state.baseIncome, currency: state.currency }, { merge: true })
+            .catch(function () {});
+        } else {
+          saveLocalData();
+        }
+        window.renderDashboard();
+      };
+
+      window.handleAddTransaction = function (e) {
+        if (e) e.preventDefault();
+        var title = (document.getElementById('entryTitle').value || '').trim();
+        var amount = parseFloat(document.getElementById('entryAmount').value);
+        var category = document.getElementById('entryCategory').value;
+        var date = document.getElementById('entryDate').value || getTodayISO();
+
+        if (!title || isNaN(amount) || amount <= 0) {
+          showToast('Please provide a description and valid amount.', true);
+          return;
+        }
+
+        var id = 'tx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        var entry = {
+          id: id,
+          title: title,
+          amount: amount,
+          category: category,
+          date: date,
+          type: state.entryType,
+          createdAt: Date.now()
+        };
+
+        document.getElementById('entryTitle').value = '';
+        document.getElementById('entryAmount').value = '';
+
+        if (state.user && firebaseAvailable) {
+          firebase.firestore().collection('users').doc(state.user.uid)
+            .collection('expenses').doc(id).set(entry)
+            .then(function () {
+              showToast(entry.type === 'income' ? 'Extra income logged' : 'Expense recorded');
+            })
+            .catch(function (err) {
+              showToast('Cloud write error: ' + err.message, true);
+            });
+        } else {
+          state.transactions.unshift(entry);
+          saveLocalData();
+          window.renderDashboard();
+          showToast('Saved locally');
+        }
+      };
+
+      window.deleteTransaction = function (id) {
+        if (state.user && firebaseAvailable) {
+          firebase.firestore().collection('users').doc(state.user.uid)
+            .collection('expenses').doc(id).delete()
+            .then(function () {
+              showToast('Entry deleted');
+            })
+            .catch(function (err) {
+              showToast('Delete error: ' + err.message, true);
+            });
+        } else {
+          state.transactions = state.transactions.filter(function (t) { return t.id !== id; });
+          saveLocalData();
+          window.renderDashboard();
+          showToast('Entry deleted');
+        }
+      };
+
+      // 8. Dashboard Rendering & Charting
+      window.renderDashboard = function () {
+        var selectedMonth = document.getElementById('monthFilterInput').value || getCurrentMonthISO();
+        var searchQuery = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+        var catFilter = document.getElementById('categoryFilter').value;
+
+        // Filter transactions for selected month
+        var monthTx = state.transactions.filter(function (t) {
+          return (t.date || '').indexOf(selectedMonth) === 0;
+        });
+
+        var totalExpenses = 0;
+        var extraIncome = 0;
+        var categoryTotals = {};
+
+        monthTx.forEach(function (t) {
+          if (t.type === 'income') {
+            extraIncome += t.amount;
+          } else {
+            totalExpenses += t.amount;
+            categoryTotals[t.category] = (categoryTotals[t.category] || 0) + t.amount;
+          }
+        });
+
+        var totalIncome = state.baseIncome + extraIncome;
+        var balance = totalIncome - totalExpenses;
+        var burnPct = totalIncome > 0 ? Math.min(100, Math.round((totalExpenses / totalIncome) * 100)) : 0;
+
+        // Calculate remaining days in selected month
+        var parts = selectedMonth.split('-');
+        var year = parseInt(parts[0], 10);
+        var month = parseInt(parts[1], 10);
+        var daysInMonth = new Date(year, month, 0).getDate();
+        var now = new Date();
+        var daysLeft = daysInMonth;
+        if (now.getFullYear() === year && (now.getMonth() + 1) === month) {
+          daysLeft = Math.max(1, daysInMonth - now.getDate() + 1);
+        }
+        var dailySafe = balance > 0 ? (balance / daysLeft) : 0;
+
+        // Update KPI DOM
+        document.getElementById('kpiIncome').textContent = formatMoney(totalIncome);
+        document.getElementById('kpiExpenses').textContent = formatMoney(totalExpenses);
+        document.getElementById('kpiBurnPct').textContent = burnPct + '%';
+
+        var bar = document.getElementById('kpiProgressBar');
+        bar.style.width = burnPct + '%';
+        bar.className = 'h-full transition-all duration-300 ' +
+          (burnPct >= 90 ? 'bg-rose-500' : burnPct >= 75 ? 'bg-amber-400' : 'bg-emerald-500');
+
+        var balEl = document.getElementById('kpiBalance');
+        balEl.textContent = formatMoney(balance);
+        balEl.className = 'text-2xl font-bold font-mono ' + (balance < 0 ? 'text-rose-400' : 'text-emerald-400');
+
+        document.getElementById('kpiDaysLeft').textContent = daysLeft + 'd left';
+        document.getElementById('kpiDailySafe').textContent = formatMoney(dailySafe);
+
+        // Apply search & category filters for Ledger list
+        var visibleTx = monthTx.filter(function (t) {
+          var matchesSearch = !searchQuery || t.title.toLowerCase().indexOf(searchQuery) !== -1;
+          var matchesCat = catFilter === 'ALL' || t.category === catFilter;
+          return matchesSearch && matchesCat;
+        });
+
+        document.getElementById('ledgerCountText').textContent =
+          visibleTx.length + (visibleTx.length === 1 ? ' entry' : ' entries') + ' in ' + selectedMonth;
+
+        renderTransactionsList(visibleTx);
+        renderCategoryChart(categoryTotals);
+      };
+
+      function renderTransactionsList(items) {
+        var container = document.getElementById('transactionsList');
+        if (!items.length) {
+          container.innerHTML =
+            '<div class="py-10 text-center space-y-1">' +
+            '<p class="text-sm font-medium text-slate-400">No transactions found</p>' +
+            '<p class="text-xs text-slate-600">Use the form above to record your first expense or income.</p>' +
+            '</div>';
+          return;
+        }
+
+        var html = '';
+        items.forEach(function (item) {
+          var isInc = item.type === 'income';
+          var color = CATEGORY_COLORS[item.category] || '#64748b';
+          var sign = isInc ? '+' : '−';
+          var amountClass = isInc ? 'text-emerald-400' : 'text-slate-100';
+
+          html +=
+            '<div class="py-3.5 flex items-center justify-between gap-3">' +
+              '<div class="flex items-center gap-3 min-w-0">' +
+                '<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color:' + color + '"></span>' +
+                '<div class="min-w-0">' +
+                  '<p class="text-sm font-medium text-white truncate">' + escapeHTML(item.title) + '</p>' +
+                  '<p class="text-[11px] text-slate-400">' + escapeHTML(item.category) + ' · <span class="font-mono">' + escapeHTML(item.date) + '</span></p>' +
+                '</div>' +
+              '</div>' +
+              '<div class="flex items-center gap-3 shrink-0">' +
+                '<span class="text-sm font-mono font-semibold ' + amountClass + '">' + sign + ' ' + formatMoney(item.amount) + '</span>' +
+                '<button type="button" onclick="window.deleteTransaction(\'' + escapeHTML(item.id) + '\')" title="Delete" ' +
+                  'class="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition">' +
+                  '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+                    '<polyline points="3 6 5 6 21 6"></polyline>' +
+                    '<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>' +
+                  '</svg>' +
+                '</button>' +
+              '</div>' +
+            '</div>';
+        });
+
+        container.innerHTML = html;
+      }
+
+      function renderCategoryChart(categoryTotals) {
+        var canvas = document.getElementById('categoryChart');
+        var emptyEl = document.getElementById('chartEmptyState');
+        var legendEl = document.getElementById('categoryLegend');
+        var labels = Object.keys(categoryTotals);
+        var values = labels.map(function (k) { return categoryTotals[k]; });
+        var colors = labels.map(function (k) { return CATEGORY_COLORS[k] || '#64748b'; });
+
+        if (!labels.length) {
+          canvas.classList.add('hidden');
+          emptyEl.classList.remove('hidden');
+          legendEl.innerHTML = '';
+          if (state.chartInstance) {
+            state.chartInstance.destroy();
+            state.chartInstance = null;
+          }
+          return;
+        }
+
+        canvas.classList.remove('hidden');
+        emptyEl.classList.add('hidden');
+
+        // Build legend
+        var legendHtml = '';
+        labels.forEach(function (lbl, idx) {
+          legendHtml +=
+            '<div class="flex items-center justify-between bg-obsidian-950/70 px-2.5 py-1.5 rounded-lg border border-white/5">' +
+              '<span class="flex items-center gap-1.5 truncate text-slate-300">' +
+                '<span class="w-2 h-2 rounded-full shrink-0" style="background-color:' + colors[idx] + '"></span>' +
+                '<span class="truncate">' + escapeHTML(lbl) + '</span>' +
+              '</span>' +
+              '<span class="font-mono text-slate-200 ml-2 shrink-0">' + formatMoney(values[idx]) + '</span>' +
+            '</div>';
+        });
+        legendEl.innerHTML = legendHtml;
+
+        if (typeof Chart === 'undefined') return;
+
+        if (state.chartInstance) {
+          state.chartInstance.data.labels = labels;
+          state.chartInstance.data.datasets[0].data = values;
+          state.chartInstance.data.datasets[0].backgroundColor = colors;
+          state.chartInstance.update();
+        } else {
+          state.chartInstance = new Chart(canvas.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+              labels: labels,
+              datasets: [{
+                data: values,
+                backgroundColor: colors,
+                borderColor: '#121215',
+                borderWidth: 3
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              cutout: '68%',
+              plugins: {
+                legend: { display: false }
+              }
+            }
+          });
+        }
+      }
+
+      window.exportCSV = function () {
+        if (!state.transactions.length) {
+          showToast('No transactions to export', true);
+          return;
+        }
+        var rows = [['Date', 'Type', 'Category', 'Description', 'Amount', 'Currency']];
+        state.transactions.forEach(function (t) {
+          rows.push([
+            t.date,
+            t.type,
+            '"' + String(t.category).replace(/"/g, '""') + '"',
+            '"' + String(t.title).replace(/"/g, '""') + '"',
+            t.amount.toFixed(2),
+            state.currency
+          ]);
+        });
+        var csvContent = rows.map(function (r) { return r.join(','); }).join('\n');
+        var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'obsidian-ledger-' + getTodayISO() + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showToast('CSV exported');
+      };
+
+      function escapeHTML(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      // 9. Bootstrap Defaults & Auth State Observer
+      document.getElementById('entryDate').value = getTodayISO();
+      document.getElementById('monthFilterInput').value = getCurrentMonthISO();
+
+      if (firebaseAvailable) {
+        firebase.auth().onAuthStateChanged(function (user) {
+          if (user) {
+            state.user = user;
+            state.isOffline = false;
+            showDashboardUI();
+            startCloudListeners(user);
+          } else if (!state.isOffline) {
+            state.user = null;
+            showAuthUI();
           }
         });
       } else {
-        refreshAll();
-        showAuthGate('signin');
+        showAuthUI();
       }
-    });
+    })();
   </script>
 </body>
 </html>
