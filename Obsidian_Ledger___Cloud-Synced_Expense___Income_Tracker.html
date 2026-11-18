@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en" class="dark overflow-x-hidden max-w-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Obsidian Ledger — Cloud-Synced Expense & Income Tracker</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            obsidian: {
+              950: '#09090b',
+              900: '#121215',
+              850: '#16161a',
+              800: '#1c1c21',
+              700: '#27272e',
+              600: '#383842',
+            },
+            emeraldGlow: {
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    html, body {
+      overflow-x: hidden;
+      max-width: 100vw;
+      width: 100%;
+    }
+  </style>
+</head>
+<body class="bg-obsidian-950 text-slate-100 font-sans antialiased selection:bg-emerald-500/30 selection:text-emerald-200 min-h-screen flex flex-col overflow-x-hidden">
+
+  <!-- Authentication Gate / Login & Register Screen -->
+  <div id="authGateOverlay" class="fixed inset-0 z-50 bg-obsidian-950/95 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto">
+    <div class="w-full max-w-md bg-obsidian-900 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 my-auto">
+      <!-- Brand Header -->
+      <div class="text-center space-y-2">
+        <div class="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+          <i data-lucide="layers" class="w-6 h-6 text-obsidian-950 stroke-[2.2]"></i>
+        </div>
+        <h1 class="text-xl font-bold tracking-tight text-white">
+          OBSIDIAN <span class="text-emerald-400 font-medium">LEDGER</span>
+        </h1>
+        <p class="text-xs text-slate-400">Real-Time Cloud Synced Expense & Monthly Income Tracker</p>
+      </div>
+
+      <!-- Auth Mode Tabs -->
+      <div class="grid grid-cols-2 bg-obsidian-950 p-1 rounded-xl border border-white/[0.08]">
+        <button type="button" id="tabSignInBtn" class="py-2 rounded-lg text-xs font-semibold bg-emerald-500 text-obsidian-950 transition">
+          Sign In
+        </button>
+        <button type="button" id="tabSignUpBtn" class="py-2 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
+          Create Account
+        </button>
+      </div>
+
+      <!-- Auth Error Alert -->
+      <div id="authErrorBox" class="hidden rounded-xl bg-rose-500/15 border border-rose-500/30 p-3 text-xs text-rose-300 flex items-start gap-2">
+        <i data-lucide="alert-circle" class="w-4 h-4 text-rose-400 shrink-0 mt-0.5"></i>
+        <span id="authErrorText">Authentication error</span>
+      </div>
+
+      <!-- Email & Password Form -->
+      <form id="authForm" class="space-y-4">
+        <div>
+          <label for="authEmail" class="block text-xs font-medium text-slate-300 mb-1.5">Email Address</label>
+          <input type="email" id="authEmail" required autocomplete="email" placeholder="you@example.com"
+            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none transition" />
+        </div>
+        <div>
+          <label for="authPassword" class="block text-xs font-medium text-slate-300 mb-1.5">Password</label>
+          <input type="password" id="authPassword" required minlength="6" autocomplete="current-password" placeholder="••••••••"
+            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none transition" />
+        </div>
+        <button type="submit" id="authSubmitBtn" class="w-full bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-sm py-2.5 px-4 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-[0.99]">
+          <i data-lucide="log-in" class="w-4 h-4"></i>
+          <span id="authSubmitText">Sign In to Cloud</span>
+        </button>
+      </form>
+
+      <!-- Divider -->
+      <div class="relative flex items-center justify-center">
+        <div class="border-t border-white/[0.08] w-full"></div>
+        <span class="bg-obsidian-900 px-3 text-[11px] uppercase tracking-wider text-slate-500">or</span>
+        <div class="border-t border-white/[0.08] w-full"></div>
+      </div>
+
+      <!-- Google & Offline Mode Options -->
+      <div class="space-y-2.5">
+        <button type="button" id="googleSignInBtn" class="w-full bg-obsidian-800 hover:bg-obsidian-700 text-white font-medium text-xs sm:text-sm py-2.5 px-4 rounded-xl border border-white/10 flex items-center justify-center gap-2.5 transition">
+          <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"/>
+            <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z"/>
+            <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z"/>
+            <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
+
+        <button type="button" id="continueOfflineBtn" class="w-full bg-transparent hover:bg-white/[0.04] text-slate-400 hover:text-slate-200 font-medium text-xs py-2.5 px-4 rounded-xl border border-white/[0.06] flex items-center justify-center gap-2 transition">
+          <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span>Continue in Local Offline Mode</span>
+        </button>
+      </div>
+
+      <!-- Self-Hosting Setup Info Trigger -->
+      <div class="pt-1 text-center">
+        <button type="button" id="openSetupGuideFromAuthBtn" class="text-[11px] text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 transition">
+          <i data-lucide="info" class="w-3.5 h-3.5"></i>
+          <span>Self-Hosting Cloud Setup Info</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Navigation Header -->
+  <header class="sticky top-0 z-30 w-full bg-obsidian-950/90 backdrop-blur-xl border-b border-white/[0.08]">
+    <div class="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2">
+      <!-- Brand Identity -->
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+          <i data-lucide="layers" class="w-5 h-5 text-obsidian-950 stroke-[2.2]"></i>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-sm sm:text-lg font-bold tracking-tight text-white flex items-center gap-1.5 truncate">
+            OBSIDIAN <span class="text-emerald-400 font-medium">LEDGER</span>
+          </h1>
+          <div class="flex items-center gap-2">
+            <!-- Live Cloud Sync Status Indicator -->
+            <span id="syncStatusBadge" class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-mono text-slate-400">
+              <span id="syncStatusDot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              <span id="syncStatusText">Offline Mode</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Global Controls -->
+      <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <!-- User Account Pill -->
+        <div id="userAccountBadge" class="hidden sm:flex items-center gap-2 bg-obsidian-900 border border-white/10 rounded-xl px-2.5 py-1.5 max-w-[190px]">
+          <div id="userAvatarInitial" class="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-mono text-xs font-bold flex items-center justify-center shrink-0">
+            U
+          </div>
+          <span id="userEmailLabel" class="text-xs text-slate-300 truncate">Offline</span>
+        </div>
+
+        <!-- Currency Switcher -->
+        <div class="relative">
+          <select id="currencySelector" aria-label="Select Currency" class="appearance-none bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 text-xs sm:text-sm font-mono font-medium pl-2.5 pr-6 py-2 rounded-xl border border-white/10 focus:outline-none focus:border-emerald-500 transition cursor-pointer">
+            <option value="GMD">GMD (D)</option>
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="GBP">GBP (£)</option>
+          </select>
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+        </div>
+
+        <!-- Data & Account Actions Dropdown Trigger -->
+        <div class="relative" id="dataMenuWrapper">
+          <button id="dataMenuBtn" type="button" aria-label="Data and Account Menu" class="flex items-center gap-1.5 bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 text-xs sm:text-sm font-medium px-2.5 sm:px-3 py-2 rounded-xl border border-white/10 transition">
+            <i data-lucide="database" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+            <span class="hidden md:inline">Menu</span>
+            <i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400 shrink-0"></i>
+          </button>
+
+          <!-- Dropdown Menu -->
+          <div id="dataDropdown" class="hidden absolute right-0 mt-2 w-60 rounded-2xl bg-obsidian-850 border border-white/10 shadow-2xl shadow-black/80 py-1.5 z-50">
+            <!-- Mobile Account Info Header -->
+            <div class="px-4 py-2 border-b border-white/[0.08] sm:hidden">
+              <p class="text-[10px] uppercase tracking-wider text-slate-500">Account</p>
+              <p id="mobileUserEmailLabel" class="text-xs text-slate-200 font-medium truncate">Local Offline Mode</p>
+            </div>
+
+            <button id="exportCsvBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-200 hover:bg-white/[0.06] flex items-center gap-2.5 transition">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+              Export Ledger (CSV)
+            </button>
+            <button id="exportJsonBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-200 hover:bg-white/[0.06] flex items-center gap-2.5 transition">
+              <i data-lucide="download" class="w-4 h-4 text-sky-400 shrink-0"></i>
+              Download JSON Backup
+            </button>
+            <label for="importJsonInput" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-200 hover:bg-white/[0.06] flex items-center gap-2.5 transition cursor-pointer">
+              <i data-lucide="upload" class="w-4 h-4 text-indigo-400 shrink-0"></i>
+              Import JSON Backup
+            </label>
+            <input type="file" id="importJsonInput" accept=".json" class="hidden" />
+
+            <button id="openSetupGuideMenuBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-200 hover:bg-white/[0.06] flex items-center gap-2.5 transition">
+              <i data-lucide="cloud-cog" class="w-4 h-4 text-amber-400 shrink-0"></i>
+              Cloud Setup Info
+            </button>
+
+            <div class="my-1 border-t border-white/[0.08]"></div>
+            <button id="clearAllBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-rose-400 hover:bg-rose-500/10 flex items-center gap-2.5 transition">
+              <i data-lucide="trash-2" class="w-4 h-4 text-rose-400 shrink-0"></i>
+              Clear All Data
+            </button>
+            <button id="authActionBtn" type="button" class="w-full px-4 py-2.5 text-left text-xs sm:text-sm text-slate-300 hover:bg-white/[0.06] flex items-center gap-2.5 transition">
+              <i id="authActionIcon" data-lucide="log-out" class="w-4 h-4 text-slate-400 shrink-0"></i>
+              <span id="authActionText">Sign Out</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Primary Quick Add Button -->
+        <button id="scrollAddBtn" type="button" class="bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-xs sm:text-sm px-3 sm:px-3.5 py-2 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 transition active:scale-[0.98]">
+          <i data-lucide="plus" class="w-4 h-4 stroke-[2.5] shrink-0"></i>
+          <span class="hidden sm:inline">Log Expense</span>
+          <span class="sm:hidden">Add</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8 overflow-x-hidden">
+
+    <!-- Local-to-Cloud Data Migration Banner (Shown when signed into Cloud & local offline entries exist) -->
+    <div id="migrationBanner" class="hidden rounded-2xl border border-sky-500/30 bg-sky-500/10 p-4 sm:p-5 shadow-lg">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-sky-500/20 border border-sky-500/30 text-sky-400 flex items-center justify-center shrink-0 mt-0.5">
+            <i data-lucide="cloud-upload" class="w-5 h-5"></i>
+          </div>
+          <div class="min-w-0">
+            <h3 class="text-sm sm:text-base font-bold text-white">Local Offline Data Detected</h3>
+            <p id="migrationBannerText" class="text-xs sm:text-sm text-sky-200/80 mt-0.5 leading-relaxed">
+              You have local records saved on this device. Migrate them to your cloud account so they sync across all your devices.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <button id="dismissMigrationBtn" type="button" class="text-xs font-medium text-slate-300 hover:text-white bg-obsidian-800 hover:bg-obsidian-700 px-3 py-2 rounded-xl border border-white/10 transition">
+            Dismiss
+          </button>
+          <button id="migrateLocalDataBtn" type="button" class="text-xs font-semibold text-obsidian-950 bg-sky-400 hover:bg-sky-300 px-3.5 py-2 rounded-xl shadow-lg shadow-sky-500/20 flex items-center gap-1.5 transition">
+            <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+            <span>Migrate Local Data to Cloud</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Smart Reminder / Low-Balance Warning Banner (Auto-triggered when monthly expenses >= 85% or >= 100% of monthly income) -->
+    <div id="incomeWarningBanner" class="hidden rounded-2xl border p-4 sm:p-5 transition-all duration-300 shadow-lg" role="alert">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-start gap-3">
+          <div id="incomeWarningIconWrap" class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+            <i id="incomeWarningIcon" data-lucide="alert-triangle" class="w-5 h-5"></i>
+          </div>
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <h3 id="incomeWarningTitle" class="text-sm sm:text-base font-bold tracking-tight">Monthly Income Alert</h3>
+              <span id="incomeWarningBadge" class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full">0% Used</span>
+            </div>
+            <p id="incomeWarningText" class="text-xs sm:text-sm mt-1 leading-relaxed">
+              Your monthly expenses are nearly equal to your monthly income earned.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <button id="bannerAdjustIncomeBtn" type="button" class="text-xs font-semibold px-3.5 py-2 rounded-xl border transition">
+            Update Monthly Income
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 1: Automated Financial Overview -->
+    <section aria-label="Automated Financial Overview" class="space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400">Monthly Income, Balance & Expense Overview</h2>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-slate-400 font-mono">
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="referenceDateBadge">Today: Nov 18, 2026</span>
+        </div>
+      </div>
+
+      <!-- Primary Row: Monthly Income Earned & Current Monthly Balance -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Monthly Income Earned Card -->
+        <div class="bg-obsidian-900 border border-emerald-500/25 hover:border-emerald-500/45 rounded-2xl p-5 transition relative overflow-hidden">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
+                <i data-lucide="wallet" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400 block">Monthly Income Earned</span>
+                <span id="incomeMonthLabel" class="text-[11px] text-slate-400">November 2026</span>
+              </div>
+            </div>
+            <button id="toggleInlineIncomeBtn" type="button" class="text-xs font-medium text-emerald-300 hover:text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/25 px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition">
+              <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+              <span>Set Income</span>
+            </button>
+          </div>
+
+          <div id="statMonthlyIncome" class="text-2xl sm:text-3xl font-bold font-mono text-white tracking-tight mt-2">D 0.00</div>
+
+          <!-- Quick Inline Income Editor -->
+          <div id="inlineIncomeEditor" class="hidden mt-3 pt-3 border-t border-white/[0.08]">
+            <label for="inlineIncomeInput" class="block text-[11px] font-medium text-slate-300 mb-1.5">Enter Total Income Earned This Month</label>
+            <div class="flex items-center gap-2">
+              <div class="relative flex-1 min-w-0">
+                <span id="incomeInputSymbol" class="absolute left-3 top-1/2 -translate-y-1/2 font-mono text-xs text-emerald-400 font-semibold">D</span>
+                <input type="number" id="inlineIncomeInput" min="0" step="100" placeholder="0.00"
+                  class="w-full bg-obsidian-950 border border-white/15 focus:border-emerald-500 rounded-xl pl-8 pr-3 py-2 text-sm font-mono text-white focus:outline-none" />
+              </div>
+              <button id="saveInlineIncomeBtn" type="button" class="bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-xs px-3.5 py-2 rounded-xl transition shrink-0">
+                Save
+              </button>
+              <button id="cancelInlineIncomeBtn" type="button" class="bg-obsidian-800 hover:bg-obsidian-700 text-slate-300 font-medium text-xs px-3 py-2 rounded-xl transition shrink-0">
+                Cancel
+              </button>
+            </div>
+          </div>
+
+          <div id="incomeSubtextRow" class="mt-2.5 flex items-center justify-between text-xs text-slate-400">
+            <span>Net available cashflow for the month</span>
+            <span id="incomeDailyAllowance" class="font-mono text-emerald-400">Daily pace: D 0</span>
+          </div>
+        </div>
+
+        <!-- Current Monthly Remaining Balance Card -->
+        <div id="monthlyBalanceCard" class="bg-obsidian-900 border border-white/[0.1] rounded-2xl p-5 transition relative overflow-hidden">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div class="flex items-center gap-2">
+              <div id="balanceIconWrap" class="w-8 h-8 rounded-lg bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
+                <i data-lucide="scale" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-300 block">Current Monthly Balance</span>
+                <span class="text-[11px] text-slate-400">Income Earned − Monthly Expenses</span>
+              </div>
+            </div>
+            <span id="balanceStatusPill" class="text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+              Healthy
+            </span>
+          </div>
+
+          <div id="statMonthlyBalance" class="text-2xl sm:text-3xl font-bold font-mono text-emerald-400 tracking-tight mt-2">D 0.00</div>
+
+          <!-- Income Consumption Progress Bar -->
+          <div class="mt-3">
+            <div class="flex items-center justify-between text-[11px] mb-1.5">
+              <span id="incomeUsedLabel" class="text-slate-400">0% of monthly income spent</span>
+              <span id="incomeRemainingPctLabel" class="font-mono text-emerald-400">100% remaining</span>
+            </div>
+            <div class="w-full h-2 bg-obsidian-800 rounded-full overflow-hidden">
+              <div id="incomeUsageProgressBar" class="h-full bg-emerald-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Row: Today, This Week, This Month & This Year Expenses -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Today's Expenses -->
+        <div class="bg-obsidian-900 border border-white/[0.08] hover:border-white/[0.15] rounded-2xl p-5 transition relative overflow-hidden">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Today's Expenses</span>
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <i data-lucide="calendar-check" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div id="statTodayTotal" class="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">D 0.00</div>
+          <div class="mt-2 flex items-center justify-between text-xs text-slate-400 gap-2">
+            <span id="statTodayCount" class="truncate">0 entries today</span>
+            <span id="statTodayVsAvg" class="font-mono text-emerald-400 shrink-0">—</span>
+          </div>
+        </div>
+
+        <!-- Weekly Expenses -->
+        <div class="bg-obsidian-900 border border-white/[0.08] hover:border-white/[0.15] rounded-2xl p-5 transition relative overflow-hidden">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">This Week</span>
+            <div class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 shrink-0">
+              <i data-lucide="calendar-days" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div id="statWeekTotal" class="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">D 0.00</div>
+          <div class="mt-2 flex items-center justify-between text-xs text-slate-400 gap-2">
+            <span id="statWeekAvg" class="truncate">Daily avg: D 0.00</span>
+            <span id="statWeekDelta" class="font-mono text-slate-300 shrink-0">—</span>
+          </div>
+        </div>
+
+        <!-- Monthly Expenses + Optional Spending Cap -->
+        <div class="bg-obsidian-900 border border-white/[0.08] hover:border-white/[0.15] rounded-2xl p-5 transition relative overflow-hidden">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium uppercase tracking-wider text-slate-400">This Month Spent</span>
+            <button id="editBudgetBtn" type="button" title="Set Optional Expense Cap" class="text-xs text-slate-400 hover:text-emerald-400 flex items-center gap-1 bg-white/[0.04] hover:bg-white/[0.08] px-2 py-1 rounded-lg border border-white/[0.06] transition shrink-0">
+              <i data-lucide="sliders-horizontal" class="w-3 h-3"></i>
+              <span>Cap</span>
+            </button>
+          </div>
+          <div id="statMonthTotal" class="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">D 0.00</div>
+          <!-- Budget Progress Bar -->
+          <div class="mt-2.5">
+            <div class="flex items-center justify-between text-[11px] mb-1 gap-1">
+              <span id="budgetLabel" class="text-slate-400 truncate">0% of cap</span>
+              <span id="budgetTargetLabel" class="font-mono text-slate-300 shrink-0">Cap: D 25k</span>
+            </div>
+            <div class="w-full h-1.5 bg-obsidian-800 rounded-full overflow-hidden">
+              <div id="budgetProgressBar" class="h-full bg-emerald-400 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Yearly Expenses -->
+        <div class="bg-obsidian-900 border border-white/[0.08] hover:border-white/[0.15] rounded-2xl p-5 transition relative overflow-hidden">
+          <div class="flex items-center justify-between mb-3">
+            <span id="statYearHeading" class="text-xs font-medium uppercase tracking-wider text-slate-400">This Year (2026)</span>
+            <div class="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
+              <i data-lucide="trending-up" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <div id="statYearTotal" class="text-xl sm:text-2xl font-bold font-mono text-white tracking-tight">D 0.00</div>
+          <div class="mt-2 flex items-center justify-between text-xs text-slate-400 gap-2">
+            <span id="statYearMonthlyAvg" class="truncate">Monthly avg: D 0.00</span>
+            <span id="statYearCount" class="font-mono text-slate-300 shrink-0">0 txns</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Quick Daily Expense Input Form -->
+    <section id="expenseFormSection" aria-label="Log Daily Expense" class="bg-obsidian-900 border border-white/[0.08] rounded-2xl p-4 sm:p-6 shadow-xl">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-400 shrink-0">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h2 id="formHeading" class="text-base font-semibold text-white">Record Daily Expense</h2>
+            <p class="text-xs text-slate-400">Automatically deducts from your monthly balance and syncs in real time</p>
+          </div>
+        </div>
+        <button id="cancelEditBtn" type="button" class="hidden text-xs font-medium text-amber-400 hover:text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl transition self-start sm:self-auto">
+          Cancel Editing
+        </button>
+      </div>
+
+      <form id="expenseForm" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3.5 sm:gap-4">
+        <input type="hidden" id="editExpenseId" value="" />
+
+        <!-- Amount -->
+        <div class="lg:col-span-2">
+          <label for="expenseAmount" class="block text-xs font-medium text-slate-300 mb-1.5">Amount *</label>
+          <div class="relative">
+            <span id="inputCurrencySymbol" class="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-sm text-emerald-400 font-semibold">D</span>
+            <input type="number" id="expenseAmount" step="0.01" min="0.01" required placeholder="0.00"
+              class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl pl-9 pr-3 py-2.5 text-sm font-mono text-white placeholder-slate-600 focus:outline-none transition" />
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="lg:col-span-3">
+          <label for="expenseTitle" class="block text-xs font-medium text-slate-300 mb-1.5">Description / Title *</label>
+          <input type="text" id="expenseTitle" required maxlength="80" placeholder="e.g., Fresh groceries & produce"
+            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none transition" />
+        </div>
+
+        <!-- Category -->
+        <div class="lg:col-span-2">
+          <label for="expenseCategory" class="block text-xs font-medium text-slate-300 mb-1.5">Category *</label>
+          <div class="relative">
+            <select id="expenseCategory" required
+              class="w-full appearance-none bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl pl-3.5 pr-8 py-2.5 text-sm text-white focus:outline-none transition cursor-pointer">
+              <option value="Food & Dining">Food & Dining</option>
+              <option value="Transport & Fuel">Transport & Fuel</option>
+              <option value="Utilities & Bills">Utilities & Bills</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Health">Health</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Housing">Housing</option>
+              <option value="Other">Other</option>
+            </select>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          </div>
+        </div>
+
+        <!-- Date -->
+        <div class="lg:col-span-2">
+          <label for="expenseDate" class="block text-xs font-medium text-slate-300 mb-1.5">Date *</label>
+          <input type="date" id="expenseDate" required
+            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2.5 text-sm font-mono text-white focus:outline-none transition [color-scheme:dark]" />
+        </div>
+
+        <!-- Payment Method -->
+        <div class="lg:col-span-3">
+          <label for="expensePayment" class="block text-xs font-medium text-slate-300 mb-1.5">Payment Method</label>
+          <div class="relative">
+            <select id="expensePayment"
+              class="w-full appearance-none bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl pl-3.5 pr-8 py-2.5 text-sm text-white focus:outline-none transition cursor-pointer">
+              <option value="Mobile Money">Mobile Money</option>
+              <option value="Cash">Cash</option>
+              <option value="Card">Card</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </select>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          </div>
+        </div>
+
+        <!-- Optional Notes & Submit Button Row -->
+        <div class="sm:col-span-2 lg:col-span-9">
+          <label for="expenseNotes" class="block text-xs font-medium text-slate-300 mb-1.5">Optional Notes / Tags</label>
+          <input type="text" id="expenseNotes" maxlength="140" placeholder="Vendor name, receipt number, or extra context..."
+            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:outline-none transition" />
+        </div>
+
+        <div class="sm:col-span-2 lg:col-span-3 flex items-end">
+          <button type="submit" id="submitExpenseBtn"
+            class="w-full bg-emerald-500 hover:bg-emerald-400 text-obsidian-950 font-semibold text-sm py-2.5 px-5 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition active:scale-[0.99]">
+            <i data-lucide="check" class="w-4 h-4 stroke-[2.5]"></i>
+            <span id="submitBtnText">Save Expense</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Section 3: Interactive Charts & Category Breakdown -->
+    <section aria-label="Visual Spending Analytics" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <!-- Left 7 Cols: Time-Series Trend Chart -->
+      <div class="lg:col-span-7 bg-obsidian-900 border border-white/[0.08] rounded-2xl p-4 sm:p-6 flex flex-col justify-between min-w-0">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div>
+            <h3 class="text-base font-semibold text-white">Spending Trajectory</h3>
+            <p id="trendChartSubtitle" class="text-xs text-slate-400">Daily breakdown for the current week</p>
+          </div>
+          <!-- Timeframe Segmented Control -->
+          <div class="inline-flex bg-obsidian-950 p-1 rounded-xl border border-white/[0.08] self-start">
+            <button type="button" data-chart-period="week" class="chart-period-btn px-3 py-1.5 rounded-lg text-xs font-medium transition bg-emerald-500 text-obsidian-950 font-semibold">
+              Weekly
+            </button>
+            <button type="button" data-chart-period="month" class="chart-period-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
+              Monthly
+            </button>
+            <button type="button" data-chart-period="year" class="chart-period-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">
+              Yearly
+            </button>
+          </div>
+        </div>
+
+        <div class="relative w-full h-60 sm:h-72 overflow-hidden">
+          <canvas id="trendChartCanvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Right 5 Cols: Category Distribution -->
+      <div class="lg:col-span-5 bg-obsidian-900 border border-white/[0.08] rounded-2xl p-4 sm:p-6 flex flex-col justify-between min-w-0">
+        <div class="flex items-center justify-between gap-2 mb-4">
+          <div>
+            <h3 class="text-base font-semibold text-white">Category Breakdown</h3>
+            <p class="text-xs text-slate-400">Share of total spending</p>
+          </div>
+          <select id="categoryPeriodSelect" aria-label="Category Breakdown Timeframe" class="bg-obsidian-950 border border-white/10 rounded-xl px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer">
+            <option value="week">This Week</option>
+            <option value="month" selected>This Month</option>
+            <option value="year">This Year</option>
+            <option value="all">All Time</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 items-center">
+          <div class="relative h-44 flex items-center justify-center overflow-hidden">
+            <canvas id="categoryChartCanvas"></canvas>
+            <div id="doughnutCenterText" class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span class="text-[10px] uppercase tracking-wider text-slate-400">Total</span>
+              <span id="doughnutTotalAmount" class="text-sm font-bold font-mono text-white">D 0</span>
+            </div>
+          </div>
+
+          <!-- Top Categories Progress List -->
+          <div id="categoryLegendList" class="space-y-2.5 max-h-44 overflow-y-auto pr-1">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 4: Searchable & Filterable Expense Ledger (Vertical-Only Responsive Layout) -->
+    <section aria-label="Searchable Expense Ledger" class="bg-obsidian-900 border border-white/[0.08] rounded-2xl p-4 sm:p-6 space-y-5">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h3 class="text-base font-semibold text-white flex flex-wrap items-center gap-2">
+            <span>Expense Ledger</span>
+            <span id="ledgerCountBadge" class="text-xs font-mono bg-white/[0.07] text-slate-300 px-2.5 py-0.5 rounded-full">0 records</span>
+          </h3>
+          <p class="text-xs text-slate-400">Search by title, notes, or amount — filter across any timeframe or category</p>
+        </div>
+
+        <!-- Filtered Subset Total Pill -->
+        <div class="bg-obsidian-950 border border-white/[0.08] rounded-xl px-4 py-2 flex items-center gap-3 self-start md:self-auto">
+          <span class="text-xs text-slate-400">Filtered Total:</span>
+          <span id="filteredSumDisplay" class="font-mono text-sm font-bold text-emerald-400">D 0.00</span>
+        </div>
+      </div>
+
+      <!-- Search & Filter Controls Bar -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+        <!-- Real-time Search -->
+        <div class="sm:col-span-2 lg:col-span-4 relative">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          <input type="text" id="searchInput" placeholder="Search description, notes, or amount..."
+            class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl pl-10 pr-8 py-2 text-sm text-white placeholder-slate-500 focus:outline-none transition" />
+          <button id="clearSearchBtn" type="button" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Period Filter -->
+        <div class="lg:col-span-2">
+          <select id="filterPeriod" aria-label="Filter by Period" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none cursor-pointer">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="year">This Year</option>
+            <option value="custom">Custom Range...</option>
+          </select>
+        </div>
+
+        <!-- Category Filter -->
+        <div class="lg:col-span-2">
+          <select id="filterCategory" aria-label="Filter by Category" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none cursor-pointer">
+            <option value="all">All Categories</option>
+            <option value="Food & Dining">Food & Dining</option>
+            <option value="Transport & Fuel">Transport & Fuel</option>
+            <option value="Utilities & Bills">Utilities & Bills</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Health">Health</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="Housing">Housing</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <!-- Payment Filter -->
+        <div class="lg:col-span-2">
+          <select id="filterPayment" aria-label="Filter by Payment Method" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none cursor-pointer">
+            <option value="all">All Payments</option>
+            <option value="Mobile Money">Mobile Money</option>
+            <option value="Cash">Cash</option>
+            <option value="Card">Card</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+          </select>
+        </div>
+
+        <!-- Sort Selector -->
+        <div class="lg:col-span-2">
+          <select id="sortSelect" aria-label="Sort Expenses" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none cursor-pointer">
+            <option value="date-desc">Newest First</option>
+            <option value="date-asc">Oldest First</option>
+            <option value="amount-desc">Highest Amount</option>
+            <option value="amount-asc">Lowest Amount</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Custom Date Range Row -->
+      <div id="customDateRangeRow" class="hidden flex flex-wrap items-center gap-3 pt-1 pb-2 px-3 bg-obsidian-950/70 rounded-xl border border-white/[0.06]">
+        <span class="text-xs font-medium text-slate-400">Custom Range:</span>
+        <div class="flex items-center gap-2">
+          <label for="filterDateFrom" class="text-xs text-slate-500">From</label>
+          <input type="date" id="filterDateFrom" class="bg-obsidian-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white [color-scheme:dark]" />
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="filterDateTo" class="text-xs text-slate-500">To</label>
+          <input type="date" id="filterDateTo" class="bg-obsidian-900 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white [color-scheme:dark]" />
+        </div>
+        <button id="resetFiltersBtn" type="button" class="ml-auto text-xs text-emerald-400 hover:underline">Reset All Filters</button>
+      </div>
+
+      <!-- Vertical-Only Responsive Ledger List (Zero Horizontal Overflow) -->
+      <div class="rounded-xl border border-white/[0.06] overflow-hidden">
+        <!-- Desktop Header -->
+        <div class="hidden md:grid md:grid-cols-12 gap-3 bg-obsidian-950/90 border-b border-white/[0.08] py-3.5 px-4 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <div class="col-span-2">Date</div>
+          <div class="col-span-4">Description</div>
+          <div class="col-span-2">Category</div>
+          <div class="col-span-1">Method</div>
+          <div class="col-span-2 text-right">Amount</div>
+          <div class="col-span-1 text-right">Actions</div>
+        </div>
+
+        <!-- Ledger Rows Container -->
+        <div id="expenseLedgerList" class="divide-y divide-white/[0.06]">
+          <!-- Dynamically injected responsive rows -->
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyLedgerState" class="hidden py-12 text-center space-y-3">
+        <div class="w-12 h-12 rounded-2xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center mx-auto text-slate-400">
+          <i data-lucide="inbox" class="w-6 h-6"></i>
+        </div>
+        <h4 class="text-sm font-semibold text-white">No expenses recorded yet</h4>
+        <p class="text-xs text-slate-400 max-w-sm mx-auto">Log your first daily expense using the form above or adjust your active search filters.</p>
+        <div class="pt-2 flex flex-wrap items-center justify-center gap-3">
+          <button id="emptyResetFiltersBtn" type="button" class="text-xs bg-obsidian-800 hover:bg-obsidian-700 text-slate-200 px-3.5 py-2 rounded-xl border border-white/10 transition">
+            Reset Filters
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Custom Modal: Optional Monthly Expense Cap Editor -->
+  <div id="budgetModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-obsidian-900 border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-semibold text-white">Set Optional Monthly Expense Cap</h3>
+        <button id="closeBudgetModalBtn" type="button" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <p class="text-xs text-slate-400">Set an optional monthly spending ceiling for the current month alongside your monthly income tracking.</p>
+      <div>
+        <label for="monthlyBudgetInput" class="block text-xs font-medium text-slate-300 mb-1.5">Monthly Expense Cap</label>
+        <input type="number" id="monthlyBudgetInput" min="1" step="100" class="w-full bg-obsidian-950 border border-white/10 focus:border-emerald-500 rounded-xl px-3.5 py-2.5 text-sm font-mono text-white focus:outline-none" />
+      </div>
+      <div class="flex justify-end gap-2.5 pt-2">
+        <button id="cancelBudgetBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 bg-obsidian-800 hover:bg-obsidian-700 transition">Cancel</button>
+        <button id="saveBudgetBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold text-obsidian-950 bg-emerald-500 hover:bg-emerald-400 transition">Save Cap</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Modal: Cloud Setup & Self-Hosting Info -->
+  <div id="cloudSetupModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-obsidian-900 border border-white/10 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 my-auto">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i data-lucide="cloud-cog" class="w-5 h-5 text-emerald-400"></i>
+          <h3 class="text-base font-semibold text-white">Cloud Sync & Self-Hosting Guide</h3>
+        </div>
+        <button id="closeSetupModalBtn" type="button" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+        <p>
+          <strong>Obsidian Ledger</strong> uses Firebase Authentication and Cloud Firestore with offline persistence so your expenses and monthly income sync automatically across your phone and computer.
+        </p>
+        <div class="bg-obsidian-950 border border-white/10 rounded-xl p-3.5 space-y-2">
+          <p class="font-semibold text-emerald-400">If hosting your own copy on Netlify or GitHub Pages:</p>
+          <ol class="list-decimal list-inside space-y-1.5 text-slate-400">
+            <li>Create a free project at <span class="text-slate-200 font-mono">console.firebase.google.com</span>.</li>
+            <li>Enable <strong>Authentication</strong> (Email/Password and Google providers) and add your hosting domain under <em>Authorized Domains</em>.</li>
+            <li>Enable <strong>Cloud Firestore</strong> and set security rules so each user can only read/write their own <span class="text-slate-200 font-mono">users/{uid}</span> data.</li>
+            <li>Paste your web app's <span class="text-slate-200 font-mono">firebaseConfig</span> object into the <span class="text-slate-200 font-mono">FALLBACK_FIREBASE_CONFIG</span> constant inside this file's script.</li>
+          </ol>
+        </div>
+        <p class="text-slate-400">
+          Without a custom Firebase config on an external host, you can still use <strong>Local Offline Mode</strong> with full CSV/JSON backup & restore.
+        </p>
+      </div>
+      <div class="flex justify-end pt-2">
+        <button id="okSetupModalBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold text-obsidian-950 bg-emerald-500 hover:bg-emerald-400 transition">Got It</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Modal: Confirmation Dialog -->
+  <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-obsidian-900 border border-white/10 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-500/15 border border-rose-500/25 flex items-center justify-center text-rose-400 shrink-0">
+          <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 id="confirmModalTitle" class="text-base font-semibold text-white">Confirm Action</h3>
+          <p id="confirmModalMessage" class="text-xs text-slate-400 mt-0.5">Are you sure you want to proceed?</p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2.5 pt-2">
+        <button id="confirmCancelBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-medium text-slate-300 bg-obsidian-800 hover:bg-obsidian-700 transition">Cancel</button>
+        <button id="confirmProceedBtn" type="button" class="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-500 transition">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Banner -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Firebase SDK Module & Core Application Logic -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+    import {
+      getAuth,
+      onAuthStateChanged,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-auth.js";
+    import {
+      getFirestore,
+      initializeFirestore,
+      persistentLocalCache,
+      persistentMultipleTabManager,
+      doc,
+      setDoc,
+      deleteDoc,
+      onSnapshot,
+      collection,
+      writeBatch
+    } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+
+    /**
+     * ============================================================================
+     * OBSIDIAN LEDGER — FIREBASE CLOUD SYNC & FINANCIAL ENGINE
+     * ============================================================================
+     */
+
+    // Pre-wired Firebase Project Credentials (expenses-f84af)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOfPs8AQvYDrgCrtHitrALvpZyIFwCkkc",
+      authDomain: "expenses-f84af.firebaseapp.com",
+      projectId: "expenses-f84af",
+      storageBucket: "expenses-f84af.firebasestorage.app",
+      messagingSenderId: "892472768889",
+      appId: "1:892472768889:web:fd816367a33053dbb7d7a8",
+      measurementId: "G-1KMK96XZV9"
+    };
+
+    let firebaseApp = null;
+    let auth = null;
+    let db = null;
+    let firebaseReady = false;
+
+    if (firebaseConfig && firebaseConfig.apiKey) {
+      try {
+        firebaseApp = initializeApp(firebaseConfig);
+        auth = getAuth(firebaseApp);
+        try {
+          db = initializeFirestore(firebaseApp, {
+            localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+          });
+        } catch (cacheErr) {
+          db = getFirestore(firebaseApp);
+        }
+        firebaseReady = true;
+      } catch (initErr) {
+        console.error('Firebase initialization failed:', initErr);
+      }
+    }
+
+    const CATEGORIES = {
+      'Food & Dining':     { color: '#10b981', bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/25', icon: 'utensils' },
+// ... existing code ... -->
+      } else {
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-slate-400';
+        text.className = 'text-slate-400';
+        text.textContent = labelText || 'Offline Mode';
+      }
+    }
+
+    // Private Per-User Firestore Paths (Matches your Firestore Security Rules):
+    // Expenses subcollection: users/{uid}/expenses/{expenseId}
+    // User profile settings doc: users/{uid}/settings/profile
+    function getUserExpensesCollection(uid) {
+      return collection(db, 'users', uid, 'expenses');
+    }
+
+    function getUserExpenseDoc(uid, expenseId) {
+      return doc(db, 'users', uid, 'expenses', expenseId);
+    }
+
+    function getUserProfileDoc(uid) {
+      return doc(db, 'users', uid, 'settings', 'profile');
+    }
+
+    // ============================================================================
+    // LOCAL OFFLINE STORAGE & MIGRATION HELPERS
+    // ============================================================================
+// ... existing code ... -->
+      // ============================================================================
+      // INITIALIZE AUTHENTICATION STATE
+      // ============================================================================
+      if (firebaseReady && auth) {
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            hideAuthGate();
+            attachCloudListeners(user);
+          } else {
+            detachCloudListeners();
+            refreshAll();
+            showAuthGate('signin');
+          }
+        });
+      } else {
+        refreshAll();
+        showAuthGate('signin');
+      }
+    });
+  </script>
+</body>
+</html>
